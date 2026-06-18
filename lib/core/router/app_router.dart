@@ -9,23 +9,23 @@ import '../../features/companies/screens/dashboard_screen.dart';
 import '../../features/companies/screens/users_screen.dart';
 import '../../features/shell/screens/main_shell.dart';
 
-final _routerKey = GlobalKey<NavigatorState>();
-
 final appRouterProvider = Provider<GoRouter>((ref) {
   return GoRouter(
-    navigatorKey: _routerKey,
     initialLocation: '/dashboard',
     redirect: (context, state) {
-      final session = Supabase.instance.client.auth.currentSession;
-      final isAuth = session != null;
-      final loc = state.matchedLocation;
-      final isPublic = loc == '/login' || loc == '/register' || loc.startsWith('/invite');
+      final isAuth = Supabase.instance.client.auth.currentSession != null;
+      // Use uri.path — more reliable than matchedLocation during Flutter Web init
+      final path = state.uri.path;
+      final isPublic = path == '/login' ||
+          path == '/register' ||
+          path.startsWith('/invite');
 
       if (!isAuth && !isPublic) return '/login';
-      if (isAuth && loc == '/login') return '/dashboard';
+      if (isAuth && path == '/login') return '/dashboard';
       return null;
     },
-    refreshListenable: _SupabaseAuthListenable(),
+    // No refreshListenable: auth-driven navigation is handled explicitly
+    // in each screen (context.go) to avoid race conditions on Flutter Web.
     routes: [
       GoRoute(path: '/login', builder: (ctx, st) => const LoginScreen()),
       GoRoute(path: '/register', builder: (ctx, st) => const RegisterCompanyScreen()),
@@ -46,12 +46,3 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     ],
   );
 });
-
-// Makes go_router re-evaluate redirect() on auth state changes
-class _SupabaseAuthListenable extends ChangeNotifier {
-  _SupabaseAuthListenable() {
-    Supabase.instance.client.auth.onAuthStateChange.listen((_) {
-      notifyListeners();
-    });
-  }
-}
