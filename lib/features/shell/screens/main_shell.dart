@@ -1,21 +1,27 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../auth/providers/auth_provider.dart';
 
-class MainShell extends StatelessWidget {
+class MainShell extends ConsumerWidget {
   final Widget child;
   const MainShell({super.key, required this.child});
 
-  int _locationIndex(BuildContext context) {
-    final location = GoRouterState.of(context).matchedLocation;
-    if (location.startsWith('/teams')) return 1;
-    if (location.startsWith('/challenges')) return 2;
-    if (location.startsWith('/steps')) return 3;
+  int _locationIndex(String location) {
+    if (location.startsWith('/teams')) return 2;
+    if (location.startsWith('/challenges')) return 3;
+    if (location.startsWith('/steps')) return 4;
+    if (location.startsWith('/users')) return 1;
     return 0;
   }
 
   @override
-  Widget build(BuildContext context) {
-    final idx = _locationIndex(context);
+  Widget build(BuildContext context, WidgetRef ref) {
+    final location = GoRouterState.of(context).matchedLocation;
+    final idx = _locationIndex(location);
+    final profileAsync = ref.watch(currentProfileProvider);
+    final isAdmin = profileAsync.valueOrNull?.isAdmin ?? false;
+
     return Scaffold(
       body: child,
       bottomNavigationBar: NavigationBar(
@@ -23,16 +29,37 @@ class MainShell extends StatelessWidget {
         onDestinationSelected: (i) {
           switch (i) {
             case 0: context.go('/dashboard');
-            case 1: context.go('/teams');
-            case 2: context.go('/challenges');
-            case 3: context.go('/steps');
+            case 1: context.go(isAdmin ? '/users' : '/steps');
+            case 2: context.go('/teams');
+            case 3: context.go('/challenges');
+            case 4: context.go('/steps');
           }
         },
-        destinations: const [
-          NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: 'Inicio'),
-          NavigationDestination(icon: Icon(Icons.group_outlined), selectedIcon: Icon(Icons.group), label: 'Equipos'),
-          NavigationDestination(icon: Icon(Icons.emoji_events_outlined), selectedIcon: Icon(Icons.emoji_events), label: 'Desafíos'),
-          NavigationDestination(icon: Icon(Icons.directions_walk_outlined), selectedIcon: Icon(Icons.directions_walk), label: 'Pasos'),
+        destinations: [
+          const NavigationDestination(
+            icon: Icon(Icons.home_outlined),
+            selectedIcon: Icon(Icons.home),
+            label: 'Inicio',
+          ),
+          NavigationDestination(
+            icon: isAdmin
+                ? const Icon(Icons.group_outlined)
+                : const Icon(Icons.directions_walk_outlined),
+            selectedIcon: isAdmin
+                ? const Icon(Icons.group)
+                : const Icon(Icons.directions_walk),
+            label: isAdmin ? 'Usuarios' : 'Pasos',
+          ),
+          const NavigationDestination(
+            icon: Icon(Icons.groups_outlined),
+            selectedIcon: Icon(Icons.groups),
+            label: 'Equipos',
+          ),
+          const NavigationDestination(
+            icon: Icon(Icons.emoji_events_outlined),
+            selectedIcon: Icon(Icons.emoji_events),
+            label: 'Desafíos',
+          ),
         ],
       ),
     );
