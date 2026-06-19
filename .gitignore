@@ -46,3 +46,6 @@ app.*.map.json
 
 # Supabase related
 .env
+
+# Material de trabajo personal (capturas, notas, backups de historial)
+referencias/
