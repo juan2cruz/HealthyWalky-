@@ -38,3 +38,15 @@ $$;
 CREATE TRIGGER on_profile_created
   AFTER INSERT ON profiles
   FOR EACH ROW EXECUTE FUNCTION public.set_claim_company_id();
+
+-- Políticas de "companies" que dependen de profiles (movidas desde 0001_companies.sql,
+-- ya que requieren que esta tabla exista primero)
+CREATE POLICY "company_admin_select" ON companies
+  FOR SELECT USING (
+    id IN (SELECT company_id FROM profiles WHERE id = auth.uid())
+  );
+
+CREATE POLICY "company_admin_update" ON companies
+  FOR UPDATE USING (
+    id IN (SELECT company_id FROM profiles WHERE id = auth.uid() AND role = 'admin')
+  );

@@ -11,13 +11,5 @@ CREATE TABLE companies (
 
 ALTER TABLE companies ENABLE ROW LEVEL SECURITY;
 
--- Admins can read/update their own company; insert handled by registration function
-CREATE POLICY "company_admin_select" ON companies
-  FOR SELECT USING (
-    id IN (SELECT company_id FROM profiles WHERE id = auth.uid())
-  );
-
-CREATE POLICY "company_admin_update" ON companies
-  FOR UPDATE USING (
-    id IN (SELECT company_id FROM profiles WHERE id = auth.uid() AND role = 'admin')
-  );
+-- Las políticas que dependen de "profiles" se definen en 0002_profiles.sql,
+-- una vez que esa tabla ya existe.
