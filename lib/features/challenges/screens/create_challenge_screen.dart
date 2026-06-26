@@ -21,6 +21,7 @@ class _CreateChallengeScreenState
   DateTime? _endDate;
   String _enrollmentType = 'individual';
   bool _loading = false;
+  String? _dateError;
 
   @override
   void dispose() {
@@ -61,6 +62,7 @@ class _CreateChallengeScreenState
       } else {
         _endDate = picked;
       }
+      _dateError = null;
     });
   }
 
@@ -72,13 +74,11 @@ class _CreateChallengeScreenState
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
     if (_startDate == null || _endDate == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Selecciona las fechas de inicio y fin')));
+      setState(() => _dateError = 'Selecciona las fechas de inicio y fin');
       return;
     }
     if (!_endDate!.isAfter(_startDate!)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('La fecha fin debe ser posterior a la fecha inicio')));
+      setState(() => _dateError = 'La fecha fin debe ser posterior a la fecha inicio');
       return;
     }
     setState(() => _loading = true);
@@ -139,6 +139,11 @@ class _CreateChallengeScreenState
                   children: [
                     Expanded(
                       child: OutlinedButton.icon(
+                        style: _dateError != null
+                            ? OutlinedButton.styleFrom(
+                                side: BorderSide(
+                                    color: Theme.of(context).colorScheme.error))
+                            : null,
                         onPressed: () => _pickDate(isStart: true),
                         icon: const Icon(Icons.calendar_today_outlined,
                             size: 16),
@@ -151,6 +156,11 @@ class _CreateChallengeScreenState
                     ),
                     Expanded(
                       child: OutlinedButton.icon(
+                        style: _dateError != null
+                            ? OutlinedButton.styleFrom(
+                                side: BorderSide(
+                                    color: Theme.of(context).colorScheme.error))
+                            : null,
                         onPressed: () => _pickDate(isStart: false),
                         icon: const Icon(Icons.calendar_today_outlined,
                             size: 16),
@@ -159,6 +169,19 @@ class _CreateChallengeScreenState
                     ),
                   ],
                 ),
+                if (_dateError != null) ...[
+                  const SizedBox(height: 6),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 12),
+                    child: Text(
+                      _dateError!,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 24),
                 Text('Tipo de competición',
                     style: Theme.of(context).textTheme.titleSmall),
