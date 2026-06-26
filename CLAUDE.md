@@ -52,7 +52,7 @@ lib/
     ├── auth/               # Login, register company, invite join
     ├── companies/          # Dashboard + user/invite management
     ├── shell/              # Bottom nav shell wrapping nested routes
-    ├── teams/              # (Paso 4 — not yet implemented)
+    ├── teams/              # Models (Team, TeamMember), providers, tests (SDD) — screens pending
     ├── challenges/         # (Paso 5 — not yet implemented)
     └── steps/              # (Paso 6 — not yet implemented)
 ```
