@@ -4,7 +4,7 @@ import '../../../core/supabase/client.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../providers/challenge_provider.dart';
 
-// Teams created by the current user that can be enrolled (approved or enrolled status)
+// Teams created by the current user that can be enrolled
 final _myEnrollableTeamsProvider =
     FutureProvider<List<Map<String, dynamic>>>((ref) async {
   final profile = await ref.watch(currentProfileProvider.future);
@@ -35,6 +35,8 @@ class _ChallengeDetailScreenState
     ref.invalidate(challengesProvider);
     ref.invalidate(myEnrollmentsProvider);
     ref.invalidate(_myEnrollableTeamsProvider);
+    ref.invalidate(enrolledIndividualsProvider(widget.challengeId));
+    ref.invalidate(enrolledTeamsProvider(widget.challengeId));
   }
 
   Future<void> _activate() async {
@@ -69,8 +71,7 @@ class _ChallengeDetailScreenState
 
   Future<void> _enrollTeam(String teamId) async {
     try {
-      await supabase
-          .rpc('enroll_team', params: {'p_team_id': teamId});
+      await supabase.rpc('enroll_team', params: {'p_team_id': teamId});
       _invalidate();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -184,7 +185,7 @@ class _ChallengeDetailScreenState
                     ),
                   ),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
 
                 // ── Admin: activate ──────────────────────────────────
                 if (isAdmin && challenge.isDraft) ...[
@@ -212,14 +213,12 @@ class _ChallengeDetailScreenState
                 // ── Team enrollment (creator only) ───────────────────
                 if (challenge.isTeam && challenge.isDraft) ...[
                   Consumer(builder: (ctx, r, _) {
-                    final teamsAsync =
-                        r.watch(_myEnrollableTeamsProvider);
+                    final teamsAsync = r.watch(_myEnrollableTeamsProvider);
                     return teamsAsync.when(
                       loading: () => const SizedBox.shrink(),
                       error: (e, _) => const SizedBox.shrink(),
                       data: (teams) {
                         if (teams.isEmpty) return const SizedBox.shrink();
-                        // Filter out teams already enrolled in this challenge
                         final available = teams
                             .where((t) =>
                                 t['challenge_id'] == null ||
@@ -236,11 +235,120 @@ class _ChallengeDetailScreenState
                   }),
                   const SizedBox(height: 8),
                 ],
+
+                const SizedBox(height: 4),
+
+                // ── Participants list ────────────────────────────────
+                if (challenge.isIndividual)
+                  _IndividualParticipants(challengeId: widget.challengeId)
+                else
+                  _TeamParticipants(challengeId: widget.challengeId),
               ],
             ),
           );
         },
       ),
+    );
+  }
+}
+
+class _IndividualParticipants extends ConsumerWidget {
+  final String challengeId;
+  const _IndividualParticipants({required this.challengeId});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final async = ref.watch(enrolledIndividualsProvider(challengeId));
+    return async.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, _) => const SizedBox.shrink(),
+      data: (rows) {
+        if (rows.isEmpty) {
+          return const Padding(
+            padding: EdgeInsets.symmetric(vertical: 16),
+            child: Center(
+              child: Text('Aún no hay participantes inscritos',
+                  style: TextStyle(color: Colors.grey)),
+            ),
+          );
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Text(
+                'Participantes (${rows.length})',
+                style: Theme.of(context).textTheme.titleSmall,
+              ),
+            ),
+            ...rows.map((row) {
+              final profile =
+                  row['profiles'] as Map<String, dynamic>? ?? {};
+              final name =
+                  profile['display_name'] as String? ?? '(sin nombre)';
+              return ListTile(
+                dense: true,
+                leading: CircleAvatar(
+                  radius: 16,
+                  child: Text(name.isNotEmpty ? name[0].toUpperCase() : '?'),
+                ),
+                title: Text(name),
+              );
+            }),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _TeamParticipants extends ConsumerWidget {
+  final String challengeId;
+  const _TeamParticipants({required this.challengeId});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final async = ref.watch(enrolledTeamsProvider(challengeId));
+    return async.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, _) => const SizedBox.shrink(),
+      data: (rows) {
+        if (rows.isEmpty) {
+          return const Padding(
+            padding: EdgeInsets.symmetric(vertical: 16),
+            child: Center(
+              child: Text('Aún no hay equipos inscritos',
+                  style: TextStyle(color: Colors.grey)),
+            ),
+          );
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Text(
+                'Equipos inscritos (${rows.length})',
+                style: Theme.of(context).textTheme.titleSmall,
+              ),
+            ),
+            ...rows.map((row) {
+              final team =
+                  row['teams'] as Map<String, dynamic>? ?? {};
+              final name = team['name'] as String? ?? '(sin nombre)';
+              return ListTile(
+                dense: true,
+                leading: const CircleAvatar(
+                  radius: 16,
+                  child: Icon(Icons.groups_outlined, size: 16),
+                ),
+                title: Text(name),
+              );
+            }),
+          ],
+        );
+      },
     );
   }
 }
@@ -289,7 +397,8 @@ class _EnrolledBadge extends StatelessWidget {
           Icon(Icons.check_circle, color: Colors.green),
           SizedBox(width: 8),
           Text('Ya estás inscrito',
-              style: TextStyle(color: Colors.green, fontWeight: FontWeight.w600)),
+              style:
+                  TextStyle(color: Colors.green, fontWeight: FontWeight.w600)),
         ],
       ),
     );
