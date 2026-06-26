@@ -11,6 +11,9 @@ import '../../features/shell/screens/main_shell.dart';
 import '../../features/teams/screens/teams_screen.dart';
 import '../../features/teams/screens/create_team_screen.dart';
 import '../../features/teams/screens/team_detail_screen.dart';
+import '../../features/challenges/screens/challenges_screen.dart';
+import '../../features/challenges/screens/create_challenge_screen.dart';
+import '../../features/challenges/screens/challenge_detail_screen.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   return GoRouter(
@@ -53,7 +56,20 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               ),
             ],
           ),
-          GoRoute(path: '/challenges', builder: (ctx, st) => const SizedBox.shrink()),
+          GoRoute(
+            path: '/challenges',
+            builder: (ctx, st) => const ChallengesScreen(),
+            routes: [
+              GoRoute(
+                  path: 'new',
+                  builder: (ctx, st) => const CreateChallengeScreen()),
+              GoRoute(
+                path: ':id',
+                builder: (ctx, st) => ChallengeDetailScreen(
+                    challengeId: st.pathParameters['id']!),
+              ),
+            ],
+          ),
           GoRoute(path: '/steps', builder: (ctx, st) => const SizedBox.shrink()),
         ],
       ),
