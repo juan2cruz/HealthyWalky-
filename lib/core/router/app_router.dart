@@ -8,6 +8,9 @@ import '../../features/auth/screens/invite_screen.dart';
 import '../../features/companies/screens/dashboard_screen.dart';
 import '../../features/companies/screens/users_screen.dart';
 import '../../features/shell/screens/main_shell.dart';
+import '../../features/teams/screens/teams_screen.dart';
+import '../../features/teams/screens/create_team_screen.dart';
+import '../../features/teams/screens/team_detail_screen.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   return GoRouter(
@@ -38,7 +41,18 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         routes: [
           GoRoute(path: '/dashboard', builder: (ctx, st) => const DashboardScreen()),
           GoRoute(path: '/users', builder: (ctx, st) => const UsersScreen()),
-          GoRoute(path: '/teams', builder: (ctx, st) => const SizedBox.shrink()),
+          GoRoute(
+            path: '/teams',
+            builder: (ctx, st) => const TeamsScreen(),
+            routes: [
+              GoRoute(path: 'new', builder: (ctx, st) => const CreateTeamScreen()),
+              GoRoute(
+                path: ':id',
+                builder: (ctx, st) =>
+                    TeamDetailScreen(teamId: st.pathParameters['id']!),
+              ),
+            ],
+          ),
           GoRoute(path: '/challenges', builder: (ctx, st) => const SizedBox.shrink()),
           GoRoute(path: '/steps', builder: (ctx, st) => const SizedBox.shrink()),
         ],
