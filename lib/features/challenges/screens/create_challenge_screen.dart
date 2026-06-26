@@ -31,20 +31,33 @@ class _CreateChallengeScreenState
 
   Future<void> _pickDate({required bool isStart}) async {
     final now = DateTime.now();
-    final initial = isStart
-        ? (_startDate ?? now)
-        : (_endDate ?? (_startDate?.add(const Duration(days: 14)) ?? now));
+    final DateTime firstDate;
+    final DateTime initialDate;
+
+    if (isStart) {
+      firstDate = now;
+      initialDate = _startDate ?? now;
+    } else {
+      // End date must be strictly after start date
+      final minEnd = (_startDate ?? now).add(const Duration(days: 1));
+      firstDate = minEnd;
+      initialDate = (_endDate != null && _endDate!.isAfter(minEnd))
+          ? _endDate!
+          : minEnd;
+    }
+
     final picked = await showDatePicker(
       context: context,
-      initialDate: initial,
-      firstDate: now.subtract(const Duration(days: 1)),
+      initialDate: initialDate,
+      firstDate: firstDate,
       lastDate: now.add(const Duration(days: 365)),
     );
     if (picked == null) return;
     setState(() {
       if (isStart) {
         _startDate = picked;
-        if (_endDate != null && _endDate!.isBefore(picked)) _endDate = null;
+        // Clear end date if it's no longer valid
+        if (_endDate != null && !_endDate!.isAfter(picked)) _endDate = null;
       } else {
         _endDate = picked;
       }
@@ -61,6 +74,11 @@ class _CreateChallengeScreenState
     if (_startDate == null || _endDate == null) {
       ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Selecciona las fechas de inicio y fin')));
+      return;
+    }
+    if (!_endDate!.isAfter(_startDate!)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('La fecha fin debe ser posterior a la fecha inicio')));
       return;
     }
     setState(() => _loading = true);
