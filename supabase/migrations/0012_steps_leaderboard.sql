@@ -1,6 +1,12 @@
 -- Migration 0012: Steps registration & leaderboard RPCs (SDD spec Paso 6)
 -- Adds count_weekends to challenges, updates create_challenge, adds step RPCs and leaderboard query.
 
+-- ── Drop old function signatures before replacing with new ones ───────────
+-- get_team_leaderboard: return type changes (removes total_steps, renames rank→ranking)
+DROP FUNCTION IF EXISTS public.get_team_leaderboard(uuid);
+-- upsert_steps: old signature (date, integer) is superseded by (date, integer, text)
+DROP FUNCTION IF EXISTS public.upsert_steps(date, integer);
+
 -- ── Schema change ─────────────────────────────────────────────────────────
 ALTER TABLE challenges
   ADD COLUMN IF NOT EXISTS count_weekends boolean NOT NULL DEFAULT true;
