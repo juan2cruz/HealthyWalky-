@@ -58,6 +58,20 @@ final teamLeaderboardProvider =
       .toList();
 });
 
+// Realtime stream of leaderboard snapshots for a challenge
+final leaderboardSnapshotStreamProvider =
+    StreamProvider.family<List<TeamLeaderboardEntry>, String>(
+        (ref, challengeId) {
+  return supabase
+      .from('leaderboard_snapshots')
+      .stream(primaryKey: ['id'])
+      .eq('challenge_id', challengeId)
+      .order('rank')
+      .map((rows) => rows
+          .map((r) => TeamLeaderboardEntry.fromSnapshot(r))
+          .toList());
+});
+
 // Total accumulated steps for the current user in a challenge
 final myTotalStepsProvider =
     FutureProvider.family<int, String>((ref, challengeId) async {

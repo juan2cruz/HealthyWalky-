@@ -1,20 +1,68 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../providers/steps_provider.dart';
+import '../../../core/supabase/client.dart';
 import '../models/team_leaderboard_entry.dart';
+import '../providers/steps_provider.dart';
 
-class LeaderboardScreen extends ConsumerWidget {
+class LeaderboardScreen extends ConsumerStatefulWidget {
   const LeaderboardScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<LeaderboardScreen> createState() => _LeaderboardScreenState();
+}
+
+class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
+  bool _refreshing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Trigger snapshot generation as soon as the screen opens
+    WidgetsBinding.instance.addPostFrameCallback((_) => _refresh());
+  }
+
+  Future<void> _refresh() async {
+    final challenge = ref.read(activeChallengeProvider).valueOrNull;
+    if (challenge == null || !challenge.isTeam) return;
+
+    setState(() => _refreshing = true);
+    try {
+      await supabase
+          .rpc('refresh_leaderboard', params: {'p_challenge_id': challenge.id});
+    } catch (e) {
+      // Non-fatal: stream may already have data from a previous refresh
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('No se pudo actualizar: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _refreshing = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final challengeAsync = ref.watch(activeChallengeProvider);
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          challengeAsync.valueOrNull?.title ?? 'Leaderboard',
-        ),
+        title: Text(challengeAsync.valueOrNull?.title ?? 'Ranking'),
+        actions: [
+          if (_refreshing)
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2)),
+            )
+          else
+            IconButton(
+              icon: const Icon(Icons.refresh),
+              tooltip: 'Actualizar ranking',
+              onPressed: _refresh,
+            ),
+        ],
       ),
       body: challengeAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
@@ -37,31 +85,55 @@ class LeaderboardScreen extends ConsumerWidget {
 
           if (!challenge.isTeam) {
             return const Center(
-              child: Text(
-                'El leaderboard de equipos no está disponible\npara desafíos individuales.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.grey),
+              child: Padding(
+                padding: EdgeInsets.all(32),
+                child: Text(
+                  'El ranking de equipos no está disponible para desafíos individuales.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.grey),
+                ),
               ),
             );
           }
 
-          final leaderboardAsync =
-              ref.watch(teamLeaderboardProvider(challenge.id));
+          final snapshotAsync =
+              ref.watch(leaderboardSnapshotStreamProvider(challenge.id));
 
-          return leaderboardAsync.when(
+          return snapshotAsync.when(
             loading: () => const Center(child: CircularProgressIndicator()),
             error: (e, _) => Center(child: Text('Error: $e')),
-            data: (entries) => RefreshIndicator(
-              onRefresh: () async =>
-                  ref.invalidate(teamLeaderboardProvider(challenge.id)),
-              child: entries.isEmpty
-                  ? const Center(
-                      child: Text(
-                          'Aún no hay equipos inscritos con pasos registrados',
+            data: (entries) {
+              if (entries.isEmpty) {
+                return Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.hourglass_empty_outlined,
+                          size: 48, color: Colors.grey),
+                      const SizedBox(height: 12),
+                      const Text('Generando ranking…',
                           style: TextStyle(color: Colors.grey)),
-                    )
-                  : _LeaderboardList(entries: entries, ref: ref),
-            ),
+                      const SizedBox(height: 8),
+                      if (_refreshing)
+                        const CircularProgressIndicator()
+                      else
+                        TextButton(
+                          onPressed: _refresh,
+                          child: const Text('Reintentar'),
+                        ),
+                    ],
+                  ),
+                );
+              }
+              return RefreshIndicator(
+                onRefresh: _refresh,
+                child: ListView.builder(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  itemCount: entries.length,
+                  itemBuilder: (ctx, i) => _LeaderboardTile(entry: entries[i]),
+                ),
+              );
+            },
           );
         },
       ),
@@ -69,30 +141,14 @@ class LeaderboardScreen extends ConsumerWidget {
   }
 }
 
-class _LeaderboardList extends ConsumerWidget {
-  final List<TeamLeaderboardEntry> entries;
-  final WidgetRef ref;
-  const _LeaderboardList({required this.entries, required this.ref});
-
-  @override
-  Widget build(BuildContext context, WidgetRef widgetRef) {
-    return ListView.builder(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      itemCount: entries.length,
-      itemBuilder: (ctx, i) => _LeaderboardTile(entry: entries[i], rank: i),
-    );
-  }
-}
-
 class _LeaderboardTile extends StatelessWidget {
   final TeamLeaderboardEntry entry;
-  final int rank;
-  const _LeaderboardTile({required this.entry, required this.rank});
+  const _LeaderboardTile({required this.entry});
 
   Color get _medalColor => switch (entry.ranking) {
-        1 => const Color(0xFFFFD700), // gold
-        2 => const Color(0xFFC0C0C0), // silver
-        3 => const Color(0xFFCD7F32), // bronze
+        1 => const Color(0xFFFFD700),
+        2 => const Color(0xFFC0C0C0),
+        3 => const Color(0xFFCD7F32),
         _ => Colors.grey.shade300,
       };
 
@@ -105,7 +161,7 @@ class _LeaderboardTile extends StatelessWidget {
       elevation: isTop3 ? 2 : 0,
       child: ListTile(
         leading: CircleAvatar(
-          backgroundColor: _medalColor.withValues(alpha: isTop3 ? 1 : 0.4),
+          backgroundColor: _medalColor.withValues(alpha: isTop3 ? 1 : 0.5),
           child: Text(
             '${entry.ranking}',
             style: TextStyle(
@@ -125,13 +181,13 @@ class _LeaderboardTile extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
             Text(
-              _formatNumber(entry.avgSteps),
+              _fmt(entry.avgSteps),
               style: Theme.of(context)
                   .textTheme
                   .titleMedium
                   ?.copyWith(fontWeight: FontWeight.bold),
             ),
-            Text('media / miembro',
+            Text('media/miembro',
                 style: Theme.of(context).textTheme.labelSmall),
           ],
         ),
@@ -139,8 +195,5 @@ class _LeaderboardTile extends StatelessWidget {
     );
   }
 
-  String _formatNumber(int n) {
-    if (n >= 1000) return '${(n / 1000).toStringAsFixed(1)}k';
-    return '$n';
-  }
+  String _fmt(int n) => n >= 1000 ? '${(n / 1000).toStringAsFixed(1)}k' : '$n';
 }
