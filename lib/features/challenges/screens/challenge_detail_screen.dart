@@ -135,6 +135,46 @@ class _ChallengeDetailScreenState
             child: ListView(
               padding: const EdgeInsets.all(16),
               children: [
+                // ── Enrollment banner (top, most prominent) ──────────
+                if (challenge.isIndividual) ...[
+                  if (isEnrolled)
+                    _EnrolledBadge()
+                  else if (challenge.isDraft)
+                    FilledButton.icon(
+                      onPressed: _enrollIndividual,
+                      icon: const Icon(Icons.how_to_reg_outlined),
+                      label: const Text('Inscribirse en este desafío'),
+                    )
+                  else
+                    _EnrollmentClosedBanner(),
+                  const SizedBox(height: 12),
+                ],
+                if (challenge.isTeam) ...[
+                  Consumer(builder: (ctx, r, _) {
+                    final teamsAsync = r.watch(_myEnrollableTeamsProvider);
+                    return teamsAsync.when(
+                      loading: () => const SizedBox.shrink(),
+                      error: (e, _) => const SizedBox.shrink(),
+                      data: (teams) {
+                        if (!challenge.isDraft) return _EnrollmentClosedBanner();
+                        if (teams.isEmpty) return const SizedBox.shrink();
+                        final available = teams
+                            .where((t) =>
+                                t['challenge_id'] == null ||
+                                t['challenge_id'] != widget.challengeId)
+                            .toList();
+                        if (available.isEmpty) return _EnrolledBadge();
+                        return FilledButton.icon(
+                          onPressed: () => _showTeamPicker(available),
+                          icon: const Icon(Icons.groups_outlined),
+                          label: const Text('Inscribir mi equipo'),
+                        );
+                      },
+                    );
+                  }),
+                  const SizedBox(height: 12),
+                ],
+
                 // ── Info card ────────────────────────────────────────
                 Card(
                   child: Padding(
@@ -189,50 +229,11 @@ class _ChallengeDetailScreenState
 
                 // ── Admin: activate ──────────────────────────────────
                 if (isAdmin && challenge.isDraft) ...[
-                  FilledButton.icon(
+                  OutlinedButton.icon(
                     onPressed: _activate,
                     icon: const Icon(Icons.play_arrow_outlined),
                     label: const Text('Activar desafío'),
                   ),
-                  const SizedBox(height: 8),
-                ],
-
-                // ── Individual enrollment ────────────────────────────
-                if (challenge.isIndividual && challenge.isDraft) ...[
-                  if (isEnrolled)
-                    _EnrolledBadge()
-                  else
-                    FilledButton.icon(
-                      onPressed: _enrollIndividual,
-                      icon: const Icon(Icons.how_to_reg_outlined),
-                      label: const Text('Inscribirse'),
-                    ),
-                  const SizedBox(height: 8),
-                ],
-
-                // ── Team enrollment (creator only) ───────────────────
-                if (challenge.isTeam && challenge.isDraft) ...[
-                  Consumer(builder: (ctx, r, _) {
-                    final teamsAsync = r.watch(_myEnrollableTeamsProvider);
-                    return teamsAsync.when(
-                      loading: () => const SizedBox.shrink(),
-                      error: (e, _) => const SizedBox.shrink(),
-                      data: (teams) {
-                        if (teams.isEmpty) return const SizedBox.shrink();
-                        final available = teams
-                            .where((t) =>
-                                t['challenge_id'] == null ||
-                                t['challenge_id'] != widget.challengeId)
-                            .toList();
-                        if (available.isEmpty) return _EnrolledBadge();
-                        return FilledButton.icon(
-                          onPressed: () => _showTeamPicker(available),
-                          icon: const Icon(Icons.groups_outlined),
-                          label: const Text('Inscribir mi equipo'),
-                        );
-                      },
-                    );
-                  }),
                   const SizedBox(height: 8),
                 ],
 
@@ -382,6 +383,28 @@ class _StatusChip extends StatelessWidget {
       child: Text(label,
           style: TextStyle(
               color: color, fontWeight: FontWeight.w600, fontSize: 12)),
+    );
+  }
+}
+
+class _EnrollmentClosedBanner extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.grey.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey.withValues(alpha: 0.3)),
+      ),
+      child: const Row(
+        children: [
+          Icon(Icons.lock_outline, color: Colors.grey, size: 18),
+          SizedBox(width: 8),
+          Text('La inscripción está cerrada — el desafío ya está en curso',
+              style: TextStyle(color: Colors.grey)),
+        ],
+      ),
     );
   }
 }

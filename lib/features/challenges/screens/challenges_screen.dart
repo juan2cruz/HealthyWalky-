@@ -39,11 +39,15 @@ class ChallengesScreen extends ConsumerWidget {
             );
           }
           return RefreshIndicator(
-            onRefresh: () async => ref.invalidate(challengesProvider),
+            onRefresh: () async {
+              ref.invalidate(challengesProvider);
+              ref.invalidate(myEnrollmentsProvider);
+            },
             child: ListView.builder(
               padding: const EdgeInsets.symmetric(vertical: 8),
               itemCount: challenges.length,
-              itemBuilder: (ctx, i) => _ChallengeCard(challenge: challenges[i]),
+              itemBuilder: (ctx, i) =>
+                  _ChallengeCard(challenge: challenges[i]),
             ),
           );
         },
@@ -59,36 +63,68 @@ class ChallengesScreen extends ConsumerWidget {
   }
 }
 
-class _ChallengeCard extends StatelessWidget {
+class _ChallengeCard extends ConsumerWidget {
   final Challenge challenge;
   const _ChallengeCard({required this.challenge});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final enrollments = ref.watch(myEnrollmentsProvider).valueOrNull ?? {};
+    final isEnrolled = enrollments.contains(challenge.id);
+    final canEnroll = challenge.isDraft && !isEnrolled;
+
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: _statusColor(challenge.status).withValues(alpha: 0.15),
-          child: Icon(
-            challenge.isIndividual ? Icons.person_outlined : Icons.groups_outlined,
-            color: _statusColor(challenge.status),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () => context.push('/challenges/${challenge.id}'),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  CircleAvatar(
+                    radius: 18,
+                    backgroundColor:
+                        _statusColor(challenge.status).withValues(alpha: 0.15),
+                    child: Icon(
+                      challenge.isIndividual
+                          ? Icons.person_outlined
+                          : Icons.groups_outlined,
+                      size: 18,
+                      color: _statusColor(challenge.status),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(challenge.title,
+                        style: Theme.of(context).textTheme.titleSmall),
+                  ),
+                  const Icon(Icons.chevron_right, color: Colors.grey),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  _Chip(
+                      label: _statusLabel(challenge.status),
+                      color: _statusColor(challenge.status)),
+                  const SizedBox(width: 6),
+                  _Chip(
+                      label: challenge.isIndividual ? 'Individual' : 'Equipos',
+                      color: Colors.purple),
+                  const Spacer(),
+                  if (isEnrolled)
+                    _Chip(label: '✓ Inscrito', color: Colors.green)
+                  else if (canEnroll)
+                    _Chip(label: 'Inscríbete →', color: Colors.blue),
+                ],
+              ),
+            ],
           ),
         ),
-        title: Text(challenge.title),
-        subtitle: Row(
-          children: [
-            _Chip(
-                label: _statusLabel(challenge.status),
-                color: _statusColor(challenge.status)),
-            const SizedBox(width: 6),
-            _Chip(
-                label: challenge.isIndividual ? 'Individual' : 'Equipos',
-                color: Colors.purple),
-          ],
-        ),
-        trailing: const Icon(Icons.chevron_right),
-        onTap: () => context.push('/challenges/${challenge.id}'),
       ),
     );
   }
@@ -115,14 +151,14 @@ class _Chip extends StatelessWidget {
 }
 
 Color _statusColor(String status) => switch (status) {
-      'draft' => Colors.grey,
+      'draft' => Colors.orange,
       'active' => Colors.green,
-      'completed' => Colors.grey.shade700,
+      'completed' => Colors.grey.shade600,
       _ => Colors.grey,
     };
 
 String _statusLabel(String status) => switch (status) {
-      'draft' => 'Borrador',
+      'draft' => 'Inscripción abierta',
       'active' => 'Activo',
       'completed' => 'Completado',
       _ => status,
