@@ -20,6 +20,7 @@ class _CreateChallengeScreenState
   DateTime? _startDate;
   DateTime? _endDate;
   String _enrollmentType = 'individual';
+  bool _countWeekends = true;
   bool _loading = false;
   String? _dateError;
 
@@ -91,6 +92,7 @@ class _CreateChallengeScreenState
         'p_start_date': _startDate!.toIso8601String().substring(0, 10),
         'p_end_date': _endDate!.toIso8601String().substring(0, 10),
         'p_enrollment_type': _enrollmentType,
+        'p_count_weekends': _countWeekends,
       });
       ref.invalidate(challengesProvider);
       if (mounted) context.pop();
@@ -203,7 +205,15 @@ class _CreateChallengeScreenState
                   onSelectionChanged: (s) =>
                       setState(() => _enrollmentType = s.first),
                 ),
-                const SizedBox(height: 32),
+                const SizedBox(height: 24),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Contar fines de semana'),
+                  subtitle: const Text('Los pasos del sábado y domingo se incluyen en el ranking'),
+                  value: _countWeekends,
+                  onChanged: (v) => setState(() => _countWeekends = v),
+                ),
+                const SizedBox(height: 16),
                 FilledButton(
                   onPressed: _loading ? null : _submit,
                   child: _loading

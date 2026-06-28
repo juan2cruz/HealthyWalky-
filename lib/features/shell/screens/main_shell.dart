@@ -7,20 +7,21 @@ class MainShell extends ConsumerWidget {
   final Widget child;
   const MainShell({super.key, required this.child});
 
-  int _locationIndex(String location) {
+  int _locationIndex(String location, bool isAdmin) {
+    if (location.startsWith('/users')) return 1;
+    if (location.startsWith('/steps')) return isAdmin ? 0 : 1;
     if (location.startsWith('/teams')) return 2;
     if (location.startsWith('/challenges')) return 3;
-    if (location.startsWith('/steps')) return 4;
-    if (location.startsWith('/users')) return 1;
+    if (location.startsWith('/leaderboard')) return 4;
     return 0;
   }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final location = GoRouterState.of(context).matchedLocation;
-    final idx = _locationIndex(location);
-    final profileAsync = ref.watch(currentProfileProvider);
-    final isAdmin = profileAsync.valueOrNull?.isAdmin ?? false;
+    final isAdmin =
+        ref.watch(currentProfileProvider).valueOrNull?.isAdmin ?? false;
+    final idx = _locationIndex(location, isAdmin);
 
     return Scaffold(
       body: child,
@@ -28,11 +29,16 @@ class MainShell extends ConsumerWidget {
         selectedIndex: idx,
         onDestinationSelected: (i) {
           switch (i) {
-            case 0: context.go('/dashboard');
-            case 1: context.go(isAdmin ? '/users' : '/steps');
-            case 2: context.go('/teams');
-            case 3: context.go('/challenges');
-            case 4: context.go('/steps');
+            case 0:
+              context.go('/dashboard');
+            case 1:
+              context.go(isAdmin ? '/users' : '/steps');
+            case 2:
+              context.go('/teams');
+            case 3:
+              context.go('/challenges');
+            case 4:
+              context.go('/leaderboard');
           }
         },
         destinations: [
@@ -59,6 +65,11 @@ class MainShell extends ConsumerWidget {
             icon: Icon(Icons.emoji_events_outlined),
             selectedIcon: Icon(Icons.emoji_events),
             label: 'Desafíos',
+          ),
+          const NavigationDestination(
+            icon: Icon(Icons.leaderboard_outlined),
+            selectedIcon: Icon(Icons.leaderboard),
+            label: 'Ranking',
           ),
         ],
       ),

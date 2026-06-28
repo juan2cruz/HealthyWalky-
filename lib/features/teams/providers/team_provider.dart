@@ -31,7 +31,7 @@ final teamByIdProvider = FutureProvider.family<Team?, String>((ref, teamId) asyn
       .eq('company_id', profile.companyId)
       .single();
 
-  return Team.fromMap(data as Map<String, dynamic>);
+  return Team.fromMap(data);
 });
 
 // -- Fetch: Team members -------------------------------------------------

@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -14,6 +13,8 @@ import '../../features/teams/screens/team_detail_screen.dart';
 import '../../features/challenges/screens/challenges_screen.dart';
 import '../../features/challenges/screens/create_challenge_screen.dart';
 import '../../features/challenges/screens/challenge_detail_screen.dart';
+import '../../features/steps/screens/steps_screen.dart';
+import '../../features/steps/screens/leaderboard_screen.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   return GoRouter(
@@ -70,7 +71,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               ),
             ],
           ),
-          GoRoute(path: '/steps', builder: (ctx, st) => const SizedBox.shrink()),
+          GoRoute(path: '/steps', builder: (ctx, st) => const StepsScreen()),
+          GoRoute(path: '/leaderboard', builder: (ctx, st) => const LeaderboardScreen()),
         ],
       ),
     ],
