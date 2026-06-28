@@ -213,7 +213,7 @@ $$;
 -- Respects count_weekends setting: if false, weekend days are excluded.
 CREATE OR REPLACE FUNCTION public.get_team_leaderboard(p_challenge_id uuid)
 RETURNS TABLE (
-  position     bigint,
+  ranking      bigint,
   team_id      uuid,
   team_name    text,
   member_count bigint,
@@ -242,7 +242,7 @@ BEGIN
   SELECT
     RANK() OVER (ORDER BY
       COALESCE(SUM(ds.step_count)::numeric / NULLIF(COUNT(DISTINCT tm.user_id), 0), 0) DESC
-    )                                                                   AS position,
+    )                                                                   AS ranking,
     t.id                                                                AS team_id,
     t.name                                                              AS team_name,
     COUNT(DISTINCT tm.user_id)                                          AS member_count,
