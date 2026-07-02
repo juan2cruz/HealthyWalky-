@@ -187,7 +187,7 @@ class _LeaderboardTile extends StatelessWidget {
                   .titleMedium
                   ?.copyWith(fontWeight: FontWeight.bold),
             ),
-            Text('media/miembro',
+            Text('media diaria/miembro',
                 style: Theme.of(context).textTheme.labelSmall),
           ],
         ),
