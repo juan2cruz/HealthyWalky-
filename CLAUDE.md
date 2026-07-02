@@ -52,9 +52,9 @@ lib/
     ├── auth/               # Login, register company, invite join
     ├── companies/          # Dashboard + user/invite management
     ├── shell/              # Bottom nav shell wrapping nested routes
-    ├── teams/              # Models (Team, TeamMember), providers, tests (SDD) — screens pending
-    ├── challenges/         # (Paso 5 — not yet implemented)
-    └── steps/              # (Paso 6 — not yet implemented)
+    ├── teams/              # Team CRUD, join requests/invites, member management
+    ├── challenges/         # Challenge CRUD, enrollment (individual/team), activate/cancel
+    └── steps/              # Manual + Google Fit/Apple Health sync, leaderboard (realtime)
 ```
 
 Each feature follows: `models/` → `providers/` → `screens/`.
@@ -75,13 +75,14 @@ Migrations live in `supabase/migrations/` and run in order. Key design decisions
   - `register_company(name, slug, display_name)` — atomically creates a company + admin profile on first signup
   - `accept_invite(token, display_name)` — links a new user to an existing company via an invite token
   - `create_invite()` — admin generates a one-time invite token (stored in `company_invites`)
-  - `upsert_steps(step_date, step_count)` — inserts or updates a user's manual daily step entry
-  - `get_individual_leaderboard(challenge_id)` / `get_team_leaderboard(challenge_id)` — pre-computed ranking queries
+  - `upsert_steps(step_date, step_count, source)` — inserts or updates a user's daily step entry (manual or health-sync source)
+  - `get_individual_leaderboard(challenge_id)` / `get_team_leaderboard(challenge_id)` — pre-computed ranking queries (only the team leaderboard is wired up in the UI — `get_individual_leaderboard` is unused by the app)
+  - `refresh_leaderboard(challenge_id)` — regenerates a `leaderboard_snapshots` row for a challenge; called on leaderboard screen open and manual refresh, and optionally via a `pg_cron` job (see `0013_realtime_leaderboard.sql`). Clients subscribe to `leaderboard_snapshots` via Supabase Realtime, so once a snapshot is written all viewers update instantly — rankings are not recalculated on every `upsert_steps` call, only on refresh
 - **Invite flow:** `company_invites` table (migration 0008) holds tokens. After `accept_invite` the token is marked used. The invite URL carries the token as a query param; the app reads it in `InviteScreen` and calls the RPC after sign-up.
 
 ## Key Conventions
 
 - **Roles:** `admin` vs `member` stored in `profiles.role`. UI branches on this (`DashboardScreen`, `MainShell` nav items). RLS restricts write operations to admins.
-- **Step data:** `daily_steps` is denormalized with `company_id` for RLS performance. The `source` column (`manual` / `google_fit` / `apple_health` / `samsung_health`) and `is_canonical` flag support future health-platform sync (Phase 2). Leaderboard queries always filter `WHERE is_canonical = true`.
+- **Step data:** `daily_steps` is denormalized with `company_id` for RLS performance. The `source` column (`manual` / `google_fit` / `apple_health` / `samsung_health`) and `is_canonical` flag support health-platform sync, which is fully implemented in `StepsScreen` (via the `health` package on Android/iOS — auto-sync on load, manual "Sincronizar ahora", pull-to-refresh). When manual and synced entries disagree for the same day, the UI shows a conflict banner letting the user pick the canonical source. Leaderboard queries always filter `WHERE is_canonical = true`.
 - **No service-role key in client:** All Supabase calls go through the publishable key; authorization is enforced entirely by RLS + RPCs.
 - **Lint rule:** The project uses `flutter_lints`. Avoid leading underscores on local variables (use `ctx`/`st` not `_ctx`/`_st` in go_router builders); avoid double underscores (`__`).
