@@ -46,6 +46,11 @@ class _InviteScreenState extends State<InviteScreen> {
         'p_display_name': _displayNameCtrl.text.trim(),
       });
 
+      // signUp() fires authStateProvider before the profile exists.
+      // refreshSession() emits tokenRefreshed AFTER the profile is created,
+      // so currentProfileProvider re-evaluates and finds the new profile.
+      await supabase.auth.refreshSession();
+
       if (mounted) context.go('/dashboard');
     } on AuthException catch (e) {
       if (mounted) {

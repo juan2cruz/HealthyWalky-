@@ -22,6 +22,39 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
+  void _showInviteDialog(BuildContext ctx) {
+    final tokenCtrl = TextEditingController();
+    showDialog(
+      context: ctx,
+      builder: (dialogCtx) => AlertDialog(
+        title: const Text('Código de invitación'),
+        content: TextField(
+          controller: tokenCtrl,
+          autofocus: true,
+          decoration: const InputDecoration(
+            labelText: 'Pega aquí tu código',
+            hintText: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final token = tokenCtrl.text.trim();
+              if (token.isEmpty) return;
+              Navigator.pop(dialogCtx);
+              ctx.push('/invite?token=$token');
+            },
+            child: const Text('Continuar'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _signIn() async {
     setState(() => _loading = true);
     try {
@@ -91,6 +124,11 @@ class _LoginScreenState extends State<LoginScreen> {
                   OutlinedButton(
                     onPressed: () => context.push('/register'),
                     child: const Text('Registrar empresa'),
+                  ),
+                  const SizedBox(height: 8),
+                  TextButton(
+                    onPressed: () => _showInviteDialog(context),
+                    child: const Text('Tengo una invitación'),
                   ),
                 ],
               ),

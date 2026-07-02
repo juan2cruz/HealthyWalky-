@@ -1,3 +1,7 @@
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-SupabaseClient get supabase => Supabase.instance.client;
+@visibleForTesting
+SupabaseClient? mockSupabaseClient;
+
+SupabaseClient get supabase => mockSupabaseClient ?? Supabase.instance.client;
