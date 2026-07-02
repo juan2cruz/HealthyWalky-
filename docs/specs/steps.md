@@ -62,36 +62,37 @@ El usuario elige qué fuente prevalece para un día con conflicto:
 Devuelve el ranking de equipos para el desafío activo:
 
 ```sql
+-- v_days_elapsed = días elegibles (respeta count_weekends) entre start_date
+-- y LEAST(end_date, CURRENT_DATE), con mínimo 1 para evitar división por cero.
 SELECT
-  RANK() OVER (ORDER BY AVG(daily_total) DESC NULLS LAST) AS position,
-  t.id                                                     AS team_id,
-  t.name                                                   AS team_name,
-  COUNT(DISTINCT tm.user_id)                               AS member_count,
-  COALESCE(ROUND(AVG(daily_total)), 0)                     AS avg_steps
+  RANK() OVER (ORDER BY
+    COALESCE(SUM(ds.step_count)::numeric / NULLIF(COUNT(DISTINCT tm.user_id) * v_days_elapsed, 0), 0) DESC
+  )                                                                   AS ranking,
+  t.id                                                                AS team_id,
+  t.name                                                              AS team_name,
+  COUNT(DISTINCT tm.user_id)                                          AS member_count,
+  COALESCE(
+    ROUND(SUM(ds.step_count)::numeric / NULLIF(COUNT(DISTINCT tm.user_id) * v_days_elapsed, 0)),
+    0
+  )                                                                   AS avg_steps
 FROM teams t
-JOIN challenge_enrollments ce ON ce.team_id = t.id
-  AND ce.challenge_id = p_challenge_id
-JOIN team_members tm ON tm.team_id = t.id AND tm.status = 'active'
--- pasos canónicos de cada miembro dentro del rango del desafío
-LEFT JOIN (
-  SELECT user_id, step_date, step_count
-  FROM daily_steps
-  WHERE is_canonical = true
-    AND step_date BETWEEN (SELECT start_date FROM challenges WHERE id = p_challenge_id)
-                      AND LEAST(CURRENT_DATE, (SELECT end_date FROM challenges WHERE id = p_challenge_id))
-    AND (
-      (SELECT count_weekends FROM challenges WHERE id = p_challenge_id) = true
-      OR EXTRACT(DOW FROM step_date) NOT IN (0, 6)  -- excluir sábado(6) y domingo(0)
-    )
-) ds ON ds.user_id = tm.user_id
+JOIN challenge_enrollments ce
+  ON ce.team_id = t.id AND ce.challenge_id = p_challenge_id AND ce.status = 'active'
+LEFT JOIN team_members tm
+  ON tm.team_id = t.id AND tm.challenge_id = p_challenge_id AND tm.status = 'active'
+LEFT JOIN daily_steps ds
+  ON ds.user_id = tm.user_id AND ds.is_canonical = true
+ AND ds.step_date BETWEEN v_start AND v_end
+ AND (v_count_weekends = true OR EXTRACT(DOW FROM ds.step_date) NOT IN (0, 6))
 GROUP BY t.id, t.name
 ORDER BY avg_steps DESC;
 ```
 
-- **Métrica**: media de pasos por día **por miembro** a lo largo del desafío hasta hoy.
-- Solo equipos con `challenge_enrollments` para ese desafío.
-- Solo miembros con `team_members.status = 'active'`.
-- Filtra `count_weekends` dinámicamente.
+- **Métrica**: media de pasos **por día transcurrido por miembro** desde el inicio del desafío hasta hoy — no un promedio solo sobre los días con registro. Los días sin pasos cuentan como 0, para que un equipo no pueda inflar la media registrando solo algunos días.
+- El divisor `member_count` ya equilibra la desigualdad de tamaño entre equipos.
+- Solo equipos con `challenge_enrollments.status = 'active'` para ese desafío (`LEFT JOIN` en `team_members`, no `JOIN`, para que un equipo con 0 miembros activos siga apareciendo).
+- Solo miembros con `team_members.status = 'active'` y `team_members.challenge_id = p_challenge_id` (evita doble conteo si un usuario se reinscribe en más de un desafío).
+- Filtra `count_weekends` dinámicamente, tanto en la suma de pasos como en `v_days_elapsed`.
 
 ### `get_my_steps_in_challenge(p_challenge_id uuid)`
 
