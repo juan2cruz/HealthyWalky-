@@ -156,15 +156,14 @@ class _GenerateInviteDialog extends ConsumerStatefulWidget {
 }
 
 class _GenerateInviteDialogState extends ConsumerState<_GenerateInviteDialog> {
-  String? _inviteUrl;
+  String? _inviteToken;
   bool _loading = false;
 
   Future<void> _generate() async {
     setState(() => _loading = true);
     try {
       final token = await supabase.rpc('create_invite') as String;
-      final baseUrl = Uri.base.origin;
-      setState(() => _inviteUrl = '$baseUrl/invite?token=$token');
+      setState(() => _inviteToken = token);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
@@ -179,13 +178,13 @@ class _GenerateInviteDialogState extends ConsumerState<_GenerateInviteDialog> {
   Widget build(BuildContext context) {
     return AlertDialog(
       title: const Text('Generar invitación'),
-      content: _inviteUrl == null
-          ? const Text('Genera un enlace de un solo uso para invitar a un miembro.')
+      content: _inviteToken == null
+          ? const Text('Genera un código de invitación de un solo uso para invitar a un miembro.')
           : Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Enlace generado. Compártelo con tu compañero:',
+                const Text('Código generado. Compártelo con tu compañero (por ejemplo, por WhatsApp):',
                     style: TextStyle(fontSize: 13)),
                 const SizedBox(height: 12),
                 Container(
@@ -198,7 +197,7 @@ class _GenerateInviteDialogState extends ConsumerState<_GenerateInviteDialog> {
                     children: [
                       Expanded(
                         child: Text(
-                          _inviteUrl!,
+                          _inviteToken!,
                           style: const TextStyle(fontSize: 12),
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -206,9 +205,9 @@ class _GenerateInviteDialogState extends ConsumerState<_GenerateInviteDialog> {
                       IconButton(
                         icon: const Icon(Icons.copy, size: 18),
                         onPressed: () {
-                          Clipboard.setData(ClipboardData(text: _inviteUrl!));
+                          Clipboard.setData(ClipboardData(text: _inviteToken!));
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Enlace copiado')),
+                            const SnackBar(content: Text('Código copiado')),
                           );
                         },
                       ),
@@ -222,7 +221,7 @@ class _GenerateInviteDialogState extends ConsumerState<_GenerateInviteDialog> {
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('Cerrar'),
         ),
-        if (_inviteUrl == null)
+        if (_inviteToken == null)
           FilledButton(
             onPressed: _loading ? null : _generate,
             child: _loading
@@ -231,7 +230,7 @@ class _GenerateInviteDialogState extends ConsumerState<_GenerateInviteDialog> {
                     width: 16,
                     child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                   )
-                : const Text('Generar enlace'),
+                : const Text('Generar código'),
           ),
       ],
     );
