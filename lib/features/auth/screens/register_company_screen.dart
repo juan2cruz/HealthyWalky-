@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/supabase/client.dart';
+import '../auth_helpers.dart';
 
 class RegisterCompanyScreen extends StatefulWidget {
   const RegisterCompanyScreen({super.key});
@@ -37,11 +38,15 @@ class _RegisterCompanyScreenState extends State<RegisterCompanyScreen> {
     setState(() => _loading = true);
 
     try {
-      // 1. Create auth user
-      await supabase.auth.signUp(
-        email: _emailCtrl.text.trim(),
-        password: _passCtrl.text,
-      );
+      // 1. Create auth user (or recover the session of a previous
+      //    half-finished registration with the same credentials)
+      await signUpOrSignIn(_emailCtrl.text.trim(), _passCtrl.text);
+
+      // Already fully registered? Go straight in.
+      if (await currentUserHasProfile()) {
+        if (mounted) context.go('/dashboard');
+        return;
+      }
 
       // 2. Create company + admin profile atomically
       await supabase.rpc('register_company', params: {

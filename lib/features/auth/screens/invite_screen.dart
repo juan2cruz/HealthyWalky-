@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/supabase/client.dart';
+import '../auth_helpers.dart';
 
 class InviteScreen extends StatefulWidget {
   final String token;
@@ -36,10 +37,15 @@ class _InviteScreenState extends State<InviteScreen> {
     setState(() => _loading = true);
 
     try {
-      await supabase.auth.signUp(
-        email: _emailCtrl.text.trim(),
-        password: _passCtrl.text,
-      );
+      // Create the auth user, or recover the session of a previous
+      // half-finished join attempt with the same credentials.
+      await signUpOrSignIn(_emailCtrl.text.trim(), _passCtrl.text);
+
+      if (await currentUserHasProfile()) {
+        // Already joined a company — the token is not needed.
+        if (mounted) context.go('/dashboard');
+        return;
+      }
 
       await supabase.rpc('accept_invite', params: {
         'p_token': widget.token,
