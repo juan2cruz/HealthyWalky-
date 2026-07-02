@@ -72,8 +72,9 @@ No hay campos adicionales en esta fase (sin meta de pasos, sin premio).
 
 **Cierre automático (`active → completed`)**
 - El sistema cierra automáticamente el desafío al llegar `end_date`.
-- Se implementa mediante un job de pg_cron que evalúa diariamente los desafíos `active` cuya `end_date <= CURRENT_DATE` y los transiciona a `completed`.
-- El admin no necesita hacer nada para cerrar el desafío.
+- Se implementa mediante un job de pg_cron (`complete-overdue-challenges`, habilitado en la migración 0023, diario a la 01:00) que evalúa los desafíos `active` cuya `end_date < CURRENT_DATE` y los transiciona a `completed`.
+- Al completarse (por cron o manualmente), los equipos `enrolled/active/disqualified` del desafío vuelven a `approved` con `challenge_id = NULL` para poder inscribirse en el siguiente desafío (`reset_teams_after_challenge`, 0023). Los `team_members.challenge_id` se conservan como histórico.
+- El admin también puede cerrarlo manualmente con `complete_challenge` una vez alcanzada la `end_date`, sin esperar al cron.
 
 ---
 
@@ -136,7 +137,10 @@ La migración 0009 ya reescribió las RLS policies de `challenges` y `challenge_
 | `create_challenge(p_title, p_description, p_start_date, p_end_date, p_enrollment_type)` | Admin | Inserta desafío en `draft` |
 | `activate_challenge(p_challenge_id)` | Admin | `draft → active`; valida que no haya otro `active` |
 | `enroll_individual(p_challenge_id)` | Member | Inscribe al usuario en un desafío `individual` en `draft` |
-| `complete_overdue_challenges()` | pg_cron | `active → completed` para desafíos cuya `end_date <= CURRENT_DATE` |
+| `complete_overdue_challenges()` | pg_cron | `active → completed` para desafíos cuya `end_date < CURRENT_DATE`; resetea sus equipos a `approved` (0023) |
+| `complete_challenge(p_challenge_id)` | Admin | Cierre manual `active → completed` una vez `end_date <= CURRENT_DATE`; resetea sus equipos (0023) |
+
+*Nota (0023): `enroll_team` solo inscribe en desafíos `draft` y `active_challenge_id()` solo considera `draft`/`active` — los desafíos `cancelled` ya no cuentan como vigentes.*
 
 *Nota: `enroll_team` ya está definido en la spec y migración de teams (`enroll_team(p_team_id)`). Al ejecutarse, ese RPC ya identifica el desafío disponible e inscribe al equipo. No se duplica aquí.*
 
@@ -146,6 +150,6 @@ La migración 0009 ya reescribió las RLS policies de `challenges` y `challenge_
 
 - Edición de desafío desde la UI (el admin puede hacerlo directamente en Supabase Studio si es necesario).
 - Meta de pasos o premio asociado al desafío.
-- Cierre manual anticipado por el admin.
+- Cierre manual anticipado por el admin *antes* de `end_date` (para eso existe `cancel_challenge`; el cierre manual una vez alcanzada `end_date` sí existe: `complete_challenge`, 0023).
 - Notificaciones de inicio/fin de desafío.
 - Desafíos inter-empresa.

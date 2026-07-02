@@ -120,6 +120,41 @@ class _ChallengeDetailScreenState
     }
   }
 
+  Future<void> _complete() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Completar desafío'),
+        content: const Text(
+            'El desafío se marcará como completado y los equipos volverán a estado "Aprobado" para poder participar en futuros desafíos. El ranking quedará guardado como histórico.\n\n¿Confirmas?'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancelar')),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Sí, completar'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await supabase.rpc('complete_challenge',
+          params: {'p_challenge_id': widget.challengeId});
+      _invalidate();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Desafío completado')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('$e')));
+      }
+    }
+  }
+
   Future<void> _enrollIndividual() async {
     try {
       await supabase.rpc('enroll_individual',
@@ -246,7 +281,7 @@ class _ChallengeDetailScreenState
                       final pending = r.watch(_unenrolledTeamsProvider);
                       return pending.when(
                         loading: () => const SizedBox.shrink(),
-                        error: (_, __) => const SizedBox.shrink(),
+                        error: (e, st) => const SizedBox.shrink(),
                         data: (teams) {
                           if (teams.isEmpty) return const SizedBox.shrink();
                           return Column(
@@ -326,6 +361,16 @@ class _ChallengeDetailScreenState
                     onPressed: _activate,
                     icon: const Icon(Icons.play_arrow_outlined),
                     label: const Text('Activar desafío'),
+                  ),
+                  const SizedBox(height: 8),
+                ],
+                if (isAdmin &&
+                    challenge.isActive &&
+                    !challenge.endDate.isAfter(DateTime.now())) ...[
+                  FilledButton.icon(
+                    onPressed: _complete,
+                    icon: const Icon(Icons.flag_outlined),
+                    label: const Text('Completar desafío'),
                   ),
                   const SizedBox(height: 8),
                 ],
