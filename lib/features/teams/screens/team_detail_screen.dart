@@ -51,6 +51,43 @@ class _TeamDetailScreenState extends ConsumerState<TeamDetailScreen> {
     }
   }
 
+  Future<void> _abort() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Abortar equipo'),
+        content: const Text(
+            'El equipo quedará archivado y sus miembros activos quedarán libres para unirse a otros equipos.\n\n¿Confirmas?'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancelar')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Sí, abortar'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await supabase
+          .rpc('abort_team', params: {'p_team_id': widget.teamId});
+      _invalidate();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Equipo archivado')));
+        Navigator.of(context).pop();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('$e')));
+      }
+    }
+  }
+
   Future<void> _expel(String teamMemberId) async {
     final reason = await _reasonDialog('Motivo de expulsión');
     if (reason == null) return;
@@ -173,6 +210,16 @@ class _TeamDetailScreenState extends ConsumerState<TeamDetailScreen> {
                         foregroundColor: Colors.red),
                     icon: const Icon(Icons.gavel),
                     label: const Text('Descalificar equipo'),
+                  ),
+                  const SizedBox(height: 8),
+                ],
+                if (isAdmin && !team.isArchived && !team.isCompleted) ...[
+                  OutlinedButton.icon(
+                    onPressed: _abort,
+                    style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.red),
+                    icon: const Icon(Icons.block_outlined),
+                    label: const Text('Abortar equipo'),
                   ),
                   const SizedBox(height: 8),
                 ],
@@ -447,6 +494,7 @@ Color _statusColor(String status) => switch (status) {
       'active' => Colors.green,
       'completed' => Colors.grey.shade700,
       'disqualified' => Colors.red,
+      'archived' => Colors.brown,
       _ => Colors.grey,
     };
 
@@ -457,5 +505,6 @@ String _statusLabel(String status) => switch (status) {
       'active' => 'En competición',
       'completed' => 'Completado',
       'disqualified' => 'Descalificado',
+      'archived' => 'Archivado',
       _ => status,
     };

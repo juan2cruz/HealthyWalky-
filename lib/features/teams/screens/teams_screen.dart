@@ -112,6 +112,7 @@ Color _statusColor(String status) => switch (status) {
       'active' => Colors.green,
       'completed' => Colors.grey.shade700,
       'disqualified' => Colors.red,
+      'archived' => Colors.brown,
       _ => Colors.grey,
     };
 
@@ -122,5 +123,6 @@ String _statusLabel(String status) => switch (status) {
       'active' => 'En competición',
       'completed' => 'Completado',
       'disqualified' => 'Descalificado',
+      'archived' => 'Archivado',
       _ => status,
     };

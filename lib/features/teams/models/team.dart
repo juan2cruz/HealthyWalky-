@@ -30,6 +30,7 @@ class Team {
   bool get isActive => status == 'active';
   bool get isCompleted => status == 'completed';
   bool get isDisqualified => status == 'disqualified';
+  bool get isArchived => status == 'archived';
 
   // Check if user is the creator
   bool isUserCreator(String userId) => createdBy == userId;

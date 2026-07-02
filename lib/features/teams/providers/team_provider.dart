@@ -29,8 +29,9 @@ final teamByIdProvider = FutureProvider.family<Team?, String>((ref, teamId) asyn
       .select()
       .eq('id', teamId)
       .eq('company_id', profile.companyId)
-      .single();
+      .maybeSingle();
 
+  if (data == null) return null;
   return Team.fromMap(data);
 });
 
