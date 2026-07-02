@@ -44,6 +44,7 @@ class _RegisterCompanyScreenState extends State<RegisterCompanyScreen> {
 
       // Already fully registered? Go straight in.
       if (await currentUserHasProfile()) {
+        await supabase.auth.refreshSession();
         if (mounted) context.go('/dashboard');
         return;
       }
@@ -54,6 +55,12 @@ class _RegisterCompanyScreenState extends State<RegisterCompanyScreen> {
         'p_company_slug': _slugCtrl.text.trim(),
         'p_display_name': _displayNameCtrl.text.trim(),
       });
+
+      // signUp() fires authStateProvider before the profile exists, so
+      // currentProfileProvider caches null. refreshSession() emits
+      // tokenRefreshed AFTER the profile is created, forcing a re-read
+      // (same workaround as InviteScreen).
+      await supabase.auth.refreshSession();
 
       if (mounted) context.go('/dashboard');
     } on AuthException catch (e) {
