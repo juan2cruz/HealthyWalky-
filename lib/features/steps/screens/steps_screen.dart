@@ -21,6 +21,7 @@ class _StepsScreenState extends ConsumerState<StepsScreen> {
   bool _healthChecked = false;
   bool _syncing = false;
   final bool _requestingPermission = false;
+  String? _healthError;
 
   @override
   void initState() {
@@ -33,14 +34,19 @@ class _StepsScreenState extends ConsumerState<StepsScreen> {
       setState(() => _healthChecked = true);
       return;
     }
-    await Health().configure();
-    final authorized =
-        await Health().hasPermissions([HealthDataType.STEPS]) ?? false;
-    setState(() {
-      _healthAuthorized = authorized;
-      _healthChecked = true;
-    });
-    if (authorized) _syncHealth();
+    try {
+      await Health().configure();
+      final authorized =
+          await Health().hasPermissions([HealthDataType.STEPS]) ?? false;
+      if (mounted) setState(() => _healthAuthorized = authorized);
+      if (authorized) _syncHealth();
+    } catch (e) {
+      // Health Connect unavailable or plugin failure: surface it instead of
+      // silently hiding the connect banner forever.
+      if (mounted) setState(() => _healthError = '$e');
+    } finally {
+      if (mounted) setState(() => _healthChecked = true);
+    }
   }
 
   Future<void> _requestHealthPermission() async {
@@ -196,9 +202,24 @@ class _StepsScreenState extends ConsumerState<StepsScreen> {
         error: (e, _) => Center(child: Text('Error: $e')),
         data: (challenge) {
           if (challenge == null) {
-            return const Center(
-              child: Text('No hay ningún desafío activo',
-                  style: TextStyle(color: Colors.grey)),
+            // No active challenge: still let the user connect Health so the
+            // permission is already granted when the competition starts.
+            return ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                if (_healthChecked && _isMobile && !_healthAuthorized)
+                  _HealthBanner(
+                    onConnect: _requestingPermission
+                        ? null
+                        : _requestHealthPermission,
+                  ),
+                if (_healthError != null) _HealthErrorCard(_healthError!),
+                const SizedBox(height: 48),
+                const Center(
+                  child: Text('No hay ningún desafío activo',
+                      style: TextStyle(color: Colors.grey)),
+                ),
+              ],
             );
           }
 
@@ -223,6 +244,7 @@ class _StepsScreenState extends ConsumerState<StepsScreen> {
                         ? null
                         : _requestHealthPermission,
                   ),
+                if (_healthError != null) _HealthErrorCard(_healthError!),
 
                 // ── Conflicts banner ───────────────────────────────
                 if (conflicts.isNotEmpty)
@@ -355,7 +377,7 @@ class _HealthBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final label = Platform.isAndroid ? 'Google Fit' : 'Apple Health';
+    final label = Platform.isAndroid ? 'Health Connect' : 'Apple Health';
     return Card(
       color: Theme.of(context).colorScheme.primaryContainer,
       margin: const EdgeInsets.only(bottom: 12),
@@ -377,6 +399,34 @@ class _HealthBanner extends StatelessWidget {
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
                   : const Text('Conectar'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _HealthErrorCard extends StatelessWidget {
+  final String message;
+  const _HealthErrorCard(this.message);
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      color: Theme.of(context).colorScheme.errorContainer,
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          children: [
+            const Icon(Icons.error_outline),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'No se pudo comprobar Health Connect: $message',
+                style: const TextStyle(fontSize: 12),
+              ),
             ),
           ],
         ),
