@@ -105,6 +105,74 @@ class _TeamDetailScreenState extends ConsumerState<TeamDetailScreen> {
     }
   }
 
+  Future<void> _leave() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Salir del equipo'),
+        content: const Text(
+            'Dejarás de pertenecer a este equipo. Podrás unirte a otro equipo o volver a este si te invitan de nuevo.\n\n¿Confirmas?'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancelar')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Sí, salir'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await supabase.rpc('leave_team', params: {'p_team_id': widget.teamId});
+      _invalidate();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Has salido del equipo')));
+        Navigator.of(context).pop();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('$e')));
+      }
+    }
+  }
+
+  Future<void> _removeMember(String teamMemberId, String name) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Quitar del equipo'),
+        content: Text(
+            '$name dejará de pertenecer al equipo. Podrá unirse a otro equipo o ser invitado de nuevo.\n\n¿Confirmas?'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancelar')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Sí, quitar'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await supabase.rpc('remove_team_member',
+          params: {'p_team_member_id': teamMemberId});
+      _invalidate();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('$e')));
+      }
+    }
+  }
+
   Future<void> _respondRequest(String teamMemberId, bool accept) async {
     try {
       await supabase.rpc('respond_join_request', params: {
@@ -183,6 +251,22 @@ class _TeamDetailScreenState extends ConsumerState<TeamDetailScreen> {
           }
           final isCreator = team.isUserCreator(currentUserId);
 
+          final memberEntries =
+              membersAsync.valueOrNull ?? const <(TeamMember, String?)>[];
+          TeamMember? myMembership;
+          for (final e in memberEntries) {
+            if (e.$1.userId == currentUserId) {
+              myMembership = e.$1;
+              break;
+            }
+          }
+          final canLeave = !isCreator &&
+              team.canAddMembers &&
+              myMembership != null &&
+              (myMembership.isActive ||
+                  myMembership.isInvited ||
+                  myMembership.isRequestPending);
+
           return RefreshIndicator(
             onRefresh: () async => _invalidate(),
             child: ListView(
@@ -228,14 +312,52 @@ class _TeamDetailScreenState extends ConsumerState<TeamDetailScreen> {
                 if (isCreator && team.canAddMembers) ...[
                   Consumer(builder: (ctx, r, _) {
                     final av = r.watch(invitableMembersProvider(widget.teamId));
-                    return OutlinedButton.icon(
-                      onPressed: av.valueOrNull?.isNotEmpty == true
-                          ? () => _showInviteSheet(av.value!)
-                          : null,
-                      icon: const Icon(Icons.person_add_outlined),
-                      label: const Text('Invitar miembro'),
+                    final noneLeft = av.hasValue && (av.value?.isEmpty ?? false);
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        OutlinedButton.icon(
+                          onPressed: av.valueOrNull?.isNotEmpty == true
+                              ? () => _showInviteSheet(av.value!)
+                              : null,
+                          icon: const Icon(Icons.person_add_outlined),
+                          label: const Text('Invitar miembro'),
+                        ),
+                        if (noneLeft)
+                          const Padding(
+                            padding: EdgeInsets.only(top: 4),
+                            child: Text(
+                              'No quedan compañeros por invitar',
+                              textAlign: TextAlign.center,
+                              style:
+                                  TextStyle(fontSize: 12, color: Colors.grey),
+                            ),
+                          ),
+                        if (av.hasError)
+                          const Padding(
+                            padding: EdgeInsets.only(top: 4),
+                            child: Text(
+                              'No se pudo cargar la lista de compañeros',
+                              textAlign: TextAlign.center,
+                              style:
+                                  TextStyle(fontSize: 12, color: Colors.red),
+                            ),
+                          ),
+                      ],
                     );
                   }),
+                  const SizedBox(height: 8),
+                ],
+
+                // ── Member self-service exit ────────────────────────────
+                if (canLeave) ...[
+                  OutlinedButton.icon(
+                    onPressed: _leave,
+                    style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.red),
+                    icon: const Icon(Icons.exit_to_app),
+                    label: const Text('Salir del equipo'),
+                  ),
                   const SizedBox(height: 8),
                 ],
 
@@ -264,7 +386,14 @@ class _TeamDetailScreenState extends ConsumerState<TeamDetailScreen> {
                                 isCreator: isCreator,
                                 isAdmin: isAdmin,
                                 teamIsActive: team.isActive,
+                                canRemove: isCreator &&
+                                    team.canAddMembers &&
+                                    entry.$1.userId != team.createdBy &&
+                                    (entry.$1.isActive ||
+                                        entry.$1.isInvited),
                                 onExpel: () => _expel(entry.$1.id),
+                                onRemove: () => _removeMember(entry.$1.id,
+                                    entry.$2 ?? 'Este miembro'),
                                 onRespond: (accept) =>
                                     _respondRequest(entry.$1.id, accept),
                               ))
@@ -335,7 +464,9 @@ class _MemberTile extends StatelessWidget {
   final bool isCreator;
   final bool isAdmin;
   final bool teamIsActive;
+  final bool canRemove;
   final VoidCallback onExpel;
+  final VoidCallback onRemove;
   final void Function(bool) onRespond;
 
   const _MemberTile({
@@ -344,7 +475,9 @@ class _MemberTile extends StatelessWidget {
     required this.isCreator,
     required this.isAdmin,
     required this.teamIsActive,
+    required this.canRemove,
     required this.onExpel,
+    required this.onRemove,
     required this.onRespond,
   });
 
@@ -390,6 +523,13 @@ class _MemberTile extends StatelessWidget {
               onPressed: () => onRespond(false),
             ),
           ],
+          if (canRemove)
+            IconButton(
+              icon: const Icon(Icons.person_remove_outlined,
+                  color: Colors.orange),
+              tooltip: 'Quitar del equipo',
+              onPressed: onRemove,
+            ),
           if (isAdmin && member.isActive && teamIsActive)
             IconButton(
               icon:

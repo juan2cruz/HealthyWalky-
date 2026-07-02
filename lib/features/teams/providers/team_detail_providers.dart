@@ -24,7 +24,9 @@ final teamMembersWithNamesProvider =
   }).toList();
 });
 
-// Company members not yet in a given team (for invite bottom sheet).
+// Company members invitable to a given team (for invite bottom sheet).
+// Only memberships that still block an invite exclude a user; people whose
+// invitation/request was rejected or who were expelled can be re-invited.
 final invitableMembersProvider =
     FutureProvider.family<List<Profile>, String>((ref, teamId) async {
   final profile = await ref.watch(currentProfileProvider.future);
@@ -33,7 +35,8 @@ final invitableMembersProvider =
   final existing = await supabase
       .from('team_members')
       .select('user_id')
-      .eq('team_id', teamId);
+      .eq('team_id', teamId)
+      .inFilter('status', ['invited', 'request_pending', 'active']);
 
   final existingIds =
       (existing as List).map((e) => e['user_id'] as String).toSet();

@@ -202,6 +202,14 @@ CREATE UNIQUE INDEX team_members_one_active_per_challenge
 | `respond_join_request(p_team_member_id, p_accept bool)` | Creador del equipo | Acepta/rechaza, verifica `created_by`, valida timing |
 | `expel_team_member(p_team_member_id, p_reason text)` | Admin | `active → expelled`, bloquea si objetivo es creador y equipo no está en `active` |
 | `disqualify_team(p_team_id, p_reason text)` | Admin | `enrolled/active → disqualified`, registra motivo |
+| `leave_team(p_team_id)` | Member (no creador) | Salida voluntaria pre-desafío: borra su fila `team_members` (0022). Bloqueado con desafío `active` |
+| `remove_team_member(p_team_member_id)` | Creador | Retira a un miembro (`active/invited/request_pending`) pre-desafío: borra la fila (0022). Bloqueado con desafío `active` |
+
+### Reglas de reciclaje y anti-atasco (0021–0022)
+
+- **Reinvitación:** una fila `rejected` o `expelled` no veta al usuario: `invite_to_team` y `request_join_team` reciclan esa fila (`→ invited` / `→ request_pending`, limpiando `expelled_*` y `challenge_id`) en vez de fallar por la UNIQUE `(team_id, user_id)`. Filas `invited`/`request_pending`/`active` siguen dando error explícito.
+- **Una militancia a la vez:** `respond_invitation` y `respond_join_request` rechazan la aceptación si el usuario ya es `active` en otro equipo no `archived`/`completed` (antes el índice único solo protegía con `challenge_id` no nulo, y la doble militancia pre-inscripción bloqueaba `enroll_team` para siempre).
+- **Fin de desafío:** al completarse un desafío (manual `complete_challenge` o cron `complete_overdue_challenges`, 0023) los equipos `enrolled/active/disqualified` vuelven a `approved` con `challenge_id = NULL`; `team_members.challenge_id` se conserva como histórico del desafío terminado.
 
 ---
 
@@ -210,5 +218,6 @@ CREATE UNIQUE INDEX team_members_one_active_per_challenge
 - Límites de tamaño de equipo (mínimo/máximo de miembros).
 - Notificaciones push o email para invitaciones y solicitudes.
 - Transferencia del rol de creador a otro miembro.
-- Salida voluntaria de un equipo por parte de un member (sin RPC `leave_team` definido en esta fase).
 - Rankings inter-empresa.
+
+> Nota: la salida voluntaria (`leave_team`) y la retirada de miembros por el creador (`remove_team_member`) se añadieron en la migración 0022 y ya no están fuera de alcance.
