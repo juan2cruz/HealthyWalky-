@@ -20,7 +20,7 @@ class _StepsScreenState extends ConsumerState<StepsScreen> {
   bool _healthAuthorized = false;
   bool _healthChecked = false;
   bool _syncing = false;
-  bool _requestingPermission = false;
+  final bool _requestingPermission = false;
 
   @override
   void initState() {
