@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "376664079956",
+    "project_id": "healthywalky",
+    "storage_bucket": "healthywalky.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:376664079956:android:e26219889bc9dc838f37c1",
+        "android_client_info": {
+          "package_name": "com.healthywalky.healthywalky"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB3MPn05tZE8at7sTV8WMdxqXTGJXMtVT4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
