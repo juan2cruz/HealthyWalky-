@@ -61,6 +61,13 @@ class DashboardScreen extends ConsumerWidget {
                   subtitle: 'Crear y activar competiciones',
                   onTap: () => context.go('/challenges'),
                 ),
+                const SizedBox(height: 12),
+                _QuickActionCard(
+                  icon: Icons.directions_walk,
+                  title: 'Mis pasos',
+                  subtitle: 'Registra y consulta tus pasos',
+                  onTap: () => context.go('/steps'),
+                ),
               ] else ...[
                 _QuickActionCard(
                   icon: Icons.emoji_events_outlined,

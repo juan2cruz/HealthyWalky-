@@ -4,7 +4,7 @@ import '../../../core/supabase/client.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../providers/challenge_provider.dart';
 
-// Teams created by the current user that can be enrolled
+// Teams created by the current user that can be enrolled (pre-activation flow)
 final _myEnrollableTeamsProvider =
     FutureProvider<List<Map<String, dynamic>>>((ref) async {
   final profile = await ref.watch(currentProfileProvider.future);
@@ -15,6 +15,18 @@ final _myEnrollableTeamsProvider =
       .select('id, name, status, challenge_id')
       .eq('created_by', profile.id)
       .inFilter('status', ['approved', 'enrolled']);
+
+  return (data as List).cast<Map<String, dynamic>>();
+});
+
+// All teams in the company with 'approved' status (not yet enrolled in any active challenge).
+// Used by admins to retroactively enroll teams into an already-active challenge.
+final _unenrolledTeamsProvider =
+    FutureProvider<List<Map<String, dynamic>>>((ref) async {
+  final data = await supabase
+      .from('teams')
+      .select('id, name')
+      .eq('status', 'approved');
 
   return (data as List).cast<Map<String, dynamic>>();
 });
@@ -35,8 +47,28 @@ class _ChallengeDetailScreenState
     ref.invalidate(challengesProvider);
     ref.invalidate(myEnrollmentsProvider);
     ref.invalidate(_myEnrollableTeamsProvider);
+    ref.invalidate(_unenrolledTeamsProvider);
     ref.invalidate(enrolledIndividualsProvider(widget.challengeId));
     ref.invalidate(enrolledTeamsProvider(widget.challengeId));
+  }
+
+  Future<void> _enrollTeamActive(String teamId) async {
+    try {
+      await supabase.rpc('admin_enroll_team', params: {
+        'p_team_id': teamId,
+        'p_challenge_id': widget.challengeId,
+      });
+      _invalidate();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('¡Equipo inscrito en el desafío!')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('$e')));
+      }
+    }
   }
 
   Future<void> _activate() async {
@@ -44,6 +76,42 @@ class _ChallengeDetailScreenState
       await supabase.rpc('activate_challenge',
           params: {'p_challenge_id': widget.challengeId});
       _invalidate();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('$e')));
+      }
+    }
+  }
+
+  Future<void> _cancel() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Cancelar desafío'),
+        content: const Text(
+            'Esta acción es permanente. Los equipos inscritos volverán a estado "Aprobado" y podrán participar en futuros desafíos.\n\n¿Confirmas la cancelación?'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('No, mantener')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Sí, cancelar'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await supabase.rpc('cancel_challenge',
+          params: {'p_challenge_id': widget.challengeId});
+      _invalidate();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Desafío cancelado')));
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
@@ -172,6 +240,31 @@ class _ChallengeDetailScreenState
                       },
                     );
                   }),
+                  // Admin retroactive enrollment: teams that missed activation
+                  if (isAdmin && challenge.isActive)
+                    Consumer(builder: (ctx, r, _) {
+                      final pending = r.watch(_unenrolledTeamsProvider);
+                      return pending.when(
+                        loading: () => const SizedBox.shrink(),
+                        error: (_, __) => const SizedBox.shrink(),
+                        data: (teams) {
+                          if (teams.isEmpty) return const SizedBox.shrink();
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              const SizedBox(height: 4),
+                              ...teams.map((t) => OutlinedButton.icon(
+                                    onPressed: () =>
+                                        _enrollTeamActive(t['id'] as String),
+                                    icon: const Icon(Icons.group_add_outlined),
+                                    label: Text(
+                                        'Inscribir "${t['name']}" al desafío'),
+                                  )),
+                            ],
+                          );
+                        },
+                      );
+                    }),
                   const SizedBox(height: 12),
                 ],
 
@@ -227,12 +320,21 @@ class _ChallengeDetailScreenState
                 ),
                 const SizedBox(height: 12),
 
-                // ── Admin: activate ──────────────────────────────────
+                // ── Admin: activate / cancel ─────────────────────────
                 if (isAdmin && challenge.isDraft) ...[
                   OutlinedButton.icon(
                     onPressed: _activate,
                     icon: const Icon(Icons.play_arrow_outlined),
                     label: const Text('Activar desafío'),
+                  ),
+                  const SizedBox(height: 8),
+                ],
+                if (isAdmin && challenge.isActive) ...[
+                  OutlinedButton.icon(
+                    onPressed: _cancel,
+                    style: OutlinedButton.styleFrom(foregroundColor: Colors.red),
+                    icon: const Icon(Icons.cancel_outlined),
+                    label: const Text('Cancelar desafío'),
                   ),
                   const SizedBox(height: 8),
                 ],
@@ -362,6 +464,7 @@ class _StatusChip extends StatelessWidget {
         'draft' => Colors.grey,
         'active' => Colors.green,
         'completed' => Colors.grey.shade700,
+        'cancelled' => Colors.red,
         _ => Colors.grey,
       };
 
@@ -369,6 +472,7 @@ class _StatusChip extends StatelessWidget {
         'draft' => 'Borrador',
         'active' => 'Activo',
         'completed' => 'Completado',
+        'cancelled' => 'Cancelado',
         _ => status,
       };
 

@@ -26,6 +26,7 @@ class Challenge {
   bool get isDraft => status == 'draft';
   bool get isActive => status == 'active';
   bool get isCompleted => status == 'completed';
+  bool get isCancelled => status == 'cancelled';
   bool get isIndividual => enrollmentType == 'individual';
   bool get isTeam => enrollmentType == 'team';
 

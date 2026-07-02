@@ -1,15 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../auth/providers/auth_provider.dart';
 
-class MainShell extends ConsumerWidget {
+class MainShell extends StatelessWidget {
   final Widget child;
   const MainShell({super.key, required this.child});
 
-  int _locationIndex(String location, bool isAdmin) {
-    if (location.startsWith('/users')) return 1;
-    if (location.startsWith('/steps')) return isAdmin ? 0 : 1;
+  int _locationIndex(String location) {
+    if (location.startsWith('/steps')) return 1;
     if (location.startsWith('/teams')) return 2;
     if (location.startsWith('/challenges')) return 3;
     if (location.startsWith('/leaderboard')) return 4;
@@ -17,11 +14,9 @@ class MainShell extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final location = GoRouterState.of(context).matchedLocation;
-    final isAdmin =
-        ref.watch(currentProfileProvider).valueOrNull?.isAdmin ?? false;
-    final idx = _locationIndex(location, isAdmin);
+    final idx = _locationIndex(location);
 
     return Scaffold(
       body: child,
@@ -29,44 +24,35 @@ class MainShell extends ConsumerWidget {
         selectedIndex: idx,
         onDestinationSelected: (i) {
           switch (i) {
-            case 0:
-              context.go('/dashboard');
-            case 1:
-              context.go(isAdmin ? '/users' : '/steps');
-            case 2:
-              context.go('/teams');
-            case 3:
-              context.go('/challenges');
-            case 4:
-              context.go('/leaderboard');
+            case 0: context.go('/dashboard');
+            case 1: context.go('/steps');
+            case 2: context.go('/teams');
+            case 3: context.go('/challenges');
+            case 4: context.go('/leaderboard');
           }
         },
-        destinations: [
-          const NavigationDestination(
+        destinations: const [
+          NavigationDestination(
             icon: Icon(Icons.home_outlined),
             selectedIcon: Icon(Icons.home),
             label: 'Inicio',
           ),
           NavigationDestination(
-            icon: isAdmin
-                ? const Icon(Icons.group_outlined)
-                : const Icon(Icons.directions_walk_outlined),
-            selectedIcon: isAdmin
-                ? const Icon(Icons.group)
-                : const Icon(Icons.directions_walk),
-            label: isAdmin ? 'Usuarios' : 'Pasos',
+            icon: Icon(Icons.directions_walk_outlined),
+            selectedIcon: Icon(Icons.directions_walk),
+            label: 'Pasos',
           ),
-          const NavigationDestination(
+          NavigationDestination(
             icon: Icon(Icons.groups_outlined),
             selectedIcon: Icon(Icons.groups),
             label: 'Equipos',
           ),
-          const NavigationDestination(
+          NavigationDestination(
             icon: Icon(Icons.emoji_events_outlined),
             selectedIcon: Icon(Icons.emoji_events),
             label: 'Desafíos',
           ),
-          const NavigationDestination(
+          NavigationDestination(
             icon: Icon(Icons.leaderboard_outlined),
             selectedIcon: Icon(Icons.leaderboard),
             label: 'Ranking',

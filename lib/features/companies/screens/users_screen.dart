@@ -12,21 +12,20 @@ class UsersScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final profileAsync = ref.watch(currentProfileProvider);
     final usersAsync = ref.watch(companyUsersProvider);
+    final isAdmin = profileAsync.valueOrNull?.isAdmin ?? false;
+    final currentUserId = supabase.auth.currentUser?.id ?? '';
 
     return Scaffold(
       appBar: AppBar(title: const Text('Miembros')),
-      floatingActionButton: profileAsync.maybeWhen(
-        data: (p) => p?.isAdmin == true
-            ? FloatingActionButton.extended(
-                onPressed: () => _showInviteDialog(context, ref),
-                icon: const Icon(Icons.person_add),
-                label: const Text('Invitar'),
-                backgroundColor: const Color(0xFF4CAF50),
-                foregroundColor: Colors.white,
-              )
-            : null,
-        orElse: () => null,
-      ),
+      floatingActionButton: isAdmin
+          ? FloatingActionButton.extended(
+              onPressed: () => _showInviteDialog(context, ref),
+              icon: const Icon(Icons.person_add),
+              label: const Text('Invitar'),
+              backgroundColor: const Color(0xFF4CAF50),
+              foregroundColor: Colors.white,
+            )
+          : null,
       body: usersAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('Error: $e')),
@@ -43,12 +42,15 @@ class UsersScreen extends ConsumerWidget {
               ),
             );
           }
-          return ListView.separated(
+          return RefreshIndicator(
+            onRefresh: () async => ref.invalidate(companyUsersProvider),
+            child: ListView.separated(
             padding: const EdgeInsets.all(16),
             itemCount: users.length,
             separatorBuilder: (_, i) => const SizedBox(height: 8),
             itemBuilder: (context, i) {
               final user = users[i];
+              final canKick = isAdmin && !user.isAdmin && user.id != currentUserId;
               return Card(
                 elevation: 0,
                 shape: RoundedRectangleBorder(
@@ -74,13 +76,23 @@ class UsersScreen extends ConsumerWidget {
                       fontSize: 12,
                     ),
                   ),
-                  trailing: Text(
-                    _formatDate(user.createdAt),
-                    style: TextStyle(color: Colors.grey[400], fontSize: 11),
-                  ),
+                  trailing: canKick
+                      ? IconButton(
+                          icon: const Icon(Icons.person_remove_outlined,
+                              color: Colors.red),
+                          tooltip: 'Echar',
+                          onPressed: () => _confirmKick(context, ref, user.id,
+                              user.displayName),
+                        )
+                      : Text(
+                          _formatDate(user.createdAt),
+                          style:
+                              TextStyle(color: Colors.grey[400], fontSize: 11),
+                        ),
                 ),
               );
             },
+          ),
           );
         },
       ),
@@ -89,6 +101,42 @@ class UsersScreen extends ConsumerWidget {
 
   String _formatDate(DateTime dt) {
     return '${dt.day}/${dt.month}/${dt.year}';
+  }
+
+  Future<void> _confirmKick(BuildContext context, WidgetRef ref,
+      String userId, String displayName) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Echar a $displayName'),
+        content: const Text(
+            'Se eliminarán todos sus datos (pasos, membresías de equipo e inscripciones en desafíos). Esta acción no se puede deshacer.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancelar')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Echar'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await supabase.rpc('kick_user', params: {'p_user_id': userId});
+      ref.invalidate(companyUsersProvider);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('$displayName ha sido eliminado')));
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('$e')));
+      }
+    }
   }
 
   Future<void> _showInviteDialog(BuildContext context, WidgetRef ref) async {
