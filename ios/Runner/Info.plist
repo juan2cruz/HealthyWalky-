@@ -66,5 +66,9 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSHealthShareUsageDescription</key>
+	<string>HealthyWalky utiliza tus datos de pasos para sincronizarlos con la tabla de clasificación corporativa de tu empresa.</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>HealthyWalky requiere acceso de lectura de datos de salud para actualizar tus pasos en el servidor corporativo.</string>
 </dict>
 </plist>

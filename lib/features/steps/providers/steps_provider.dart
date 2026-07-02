@@ -69,7 +69,17 @@ final leaderboardSnapshotStreamProvider =
       .order('rank')
       .map((rows) => rows
           .map((r) => TeamLeaderboardEntry.fromSnapshot(r))
-          .toList());
+          .toList())
+      // Add a transformer to deduplicate based on teamId, keeping the latest entry.
+      .map((entries) {
+        final Map<String, TeamLeaderboardEntry> uniqueEntries = {};
+        for (final entry in entries) {
+          uniqueEntries[entry.teamId] = entry; // Keep the latest for each teamId
+        }
+        final sortedUniqueEntries = uniqueEntries.values.toList()
+          ..sort((a, b) => a.ranking.compareTo(b.ranking));
+        return sortedUniqueEntries;
+      });
 });
 
 // Total accumulated steps for the current user in a challenge

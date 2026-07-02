@@ -20,6 +20,7 @@ class _StepsScreenState extends ConsumerState<StepsScreen> {
   bool _healthAuthorized = false;
   bool _healthChecked = false;
   bool _syncing = false;
+  bool _requestingPermission = false;
 
   @override
   void initState() {
@@ -43,12 +44,35 @@ class _StepsScreenState extends ConsumerState<StepsScreen> {
   }
 
   Future<void> _requestHealthPermission() async {
-    final authorized = await Health().requestAuthorization(
-      [HealthDataType.STEPS],
-      permissions: [HealthDataAccess.READ],
-    );
-    setState(() => _healthAuthorized = authorized);
-    if (authorized) _syncHealth();
+    try {
+      final authorized = await Health().requestAuthorization(
+        [HealthDataType.STEPS],
+        permissions: [HealthDataAccess.READ],
+      );
+      debugPrint('HEALTH_AUTH: requestAuthorization result: $authorized');
+      setState(() => _healthAuthorized = authorized);
+      if (authorized) {
+        _syncHealth();
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Permiso denegado. Asegúrate de activar el interruptor de "Pasos" en la pantalla de Health Connect.',
+              ),
+              duration: Duration(seconds: 4),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('HEALTH_AUTH: Error requesting permissions: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al solicitar permisos: $e')),
+        );
+      }
+    }
   }
 
   Future<void> _syncHealth() async {
@@ -136,8 +160,9 @@ class _StepsScreenState extends ConsumerState<StepsScreen> {
     }
   }
 
-  void _openManualEntry(String challengeId, DateTime start, DateTime end) {
-    showModalBottomSheet(
+  Future<void> _openManualEntry(
+      String challengeId, DateTime start, DateTime end) async {
+    final saved = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
       builder: (ctx) => _ManualStepSheet(
@@ -149,12 +174,16 @@ class _StepsScreenState extends ConsumerState<StepsScreen> {
             'p_step_count': count,
             'p_source': 'manual',
           });
-          ref.invalidate(myStepsProvider(challengeId));
-          ref.invalidate(myTotalStepsProvider(challengeId));
           if (result == 'conflict') ref.invalidate(myConflictsProvider);
         },
       ),
     );
+    // Invalidate AFTER the sheet is dismissed so the parent widget
+    // is fully visible before triggering the rebuild.
+    if (saved == true && challengeId.isNotEmpty) {
+      ref.invalidate(myStepsProvider(challengeId));
+      ref.invalidate(myTotalStepsProvider(challengeId));
+    }
   }
 
   @override
@@ -191,7 +220,11 @@ class _StepsScreenState extends ConsumerState<StepsScreen> {
               children: [
                 // ── Health banner (mobile, not yet authorized) ─────
                 if (_healthChecked && _isMobile && !_healthAuthorized)
-                  _HealthBanner(onConnect: _requestHealthPermission),
+                  _HealthBanner(
+                    onConnect: _requestingPermission
+                        ? null
+                        : _requestHealthPermission,
+                  ),
 
                 // ── Conflicts banner ───────────────────────────────
                 if (conflicts.isNotEmpty)
@@ -255,48 +288,63 @@ class _StepsScreenState extends ConsumerState<StepsScreen> {
                 Text('Historial',
                     style: Theme.of(context).textTheme.titleSmall),
                 const SizedBox(height: 8),
-                stepsAsync.when(
-                  loading: () =>
-                      const Center(child: CircularProgressIndicator()),
-                  error: (e, _) => Text('Error: $e'),
-                  data: (steps) {
-                    if (steps.isEmpty) {
-                      return const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 16),
-                        child: Center(
-                          child: Text('Aún no hay pasos registrados',
-                              style: TextStyle(color: Colors.grey)),
-                        ),
+                if (DateTime.now().isBefore(challenge.startDate))
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    child: Center(
+                      child: Text(
+                        'El desafío comienza el ${_formatDate(challenge.startDate)}',
+                        style: const TextStyle(color: Colors.grey),
+                      ),
+                    ),
+                  )
+                else
+                  stepsAsync.when(
+                    loading: () =>
+                        const Center(child: CircularProgressIndicator()),
+                    error: (e, _) => Text('Error: $e'),
+                    data: (steps) {
+                      if (steps.isEmpty) {
+                        return const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 16),
+                          child: Center(
+                            child: Text('Aún no hay pasos registrados',
+                                style: TextStyle(color: Colors.grey)),
+                          ),
+                        );
+                      }
+                      return Column(
+                        children: steps
+                            .map((s) => _StepDayTile(
+                                  entry: s,
+                                  onEdit: () => _openManualEntry(
+                                      challenge.id,
+                                      challenge.startDate,
+                                      challenge.endDate),
+                                ))
+                            .toList(),
                       );
-                    }
-                    return Column(
-                      children: steps
-                          .map((s) => _StepDayTile(
-                                entry: s,
-                                onEdit: () => _openManualEntry(
-                                    challenge.id,
-                                    challenge.startDate,
-                                    challenge.endDate),
-                              ))
-                          .toList(),
-                    );
-                  },
-                ),
+                    },
+                  ),
               ],
             ),
           );
         },
       ),
-      floatingActionButton: challengeAsync.valueOrNull == null
-          ? null
-          : FloatingActionButton(
-              onPressed: () {
-                final ch = challengeAsync.value!;
-                _openManualEntry(ch.id, ch.startDate, ch.endDate);
-              },
-              tooltip: 'Añadir pasos',
-              child: const Icon(Icons.add),
-            ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          final ch = challengeAsync.valueOrNull;
+          // Use challenge dates if active; otherwise allow entry for last 90 days
+          final now = DateTime.now();
+          _openManualEntry(
+            ch?.id ?? '',
+            ch?.startDate ?? now.subtract(const Duration(days: 90)),
+            ch?.endDate ?? now,
+          );
+        },
+        tooltip: 'Añadir pasos',
+        child: const Icon(Icons.add),
+      ),
     );
   }
 }
@@ -304,7 +352,7 @@ class _StepsScreenState extends ConsumerState<StepsScreen> {
 // ── Sub-widgets ──────────────────────────────────────────────────────────────
 
 class _HealthBanner extends StatelessWidget {
-  final VoidCallback onConnect;
+  final VoidCallback? onConnect;
   const _HealthBanner({required this.onConnect});
 
   @override
@@ -324,7 +372,13 @@ class _HealthBanner extends StatelessWidget {
             ),
             TextButton(
               onPressed: onConnect,
-              child: const Text('Conectar'),
+              child: onConnect == null
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('Conectar'),
             ),
           ],
         ),
@@ -434,9 +488,15 @@ class _ManualStepSheetState extends State<_ManualStepSheet> {
   void initState() {
     super.initState();
     final today = DateTime.now();
-    _selectedDate = today.isAfter(widget.challengeEnd)
-        ? widget.challengeEnd
-        : today;
+    // Clamp today to [challengeStart, challengeEnd]. If the challenge hasn't
+    // started yet, default to challengeStart so the picker remains valid.
+    if (today.isAfter(widget.challengeEnd)) {
+      _selectedDate = widget.challengeEnd;
+    } else if (today.isBefore(widget.challengeStart)) {
+      _selectedDate = widget.challengeStart;
+    } else {
+      _selectedDate = today;
+    }
   }
 
   @override
@@ -446,13 +506,18 @@ class _ManualStepSheetState extends State<_ManualStepSheet> {
   }
 
   Future<void> _pickDate() async {
+    final today = DateTime.now();
+    // Ensure lastDate is never before firstDate (pre-challenge scenario).
+    final lastDate = today.isAfter(widget.challengeEnd)
+        ? widget.challengeEnd
+        : today.isBefore(widget.challengeStart)
+            ? widget.challengeStart
+            : today;
     final picked = await showDatePicker(
       context: context,
       initialDate: _selectedDate,
       firstDate: widget.challengeStart,
-      lastDate: DateTime.now().isAfter(widget.challengeEnd)
-          ? widget.challengeEnd
-          : DateTime.now(),
+      lastDate: lastDate,
     );
     if (picked != null) setState(() => _selectedDate = picked);
   }
@@ -467,7 +532,7 @@ class _ManualStepSheetState extends State<_ManualStepSheet> {
     setState(() => _saving = true);
     try {
       await widget.onSaved(_selectedDate, count);
-      if (mounted) Navigator.pop(context);
+      if (mounted) Navigator.pop(context, true);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
