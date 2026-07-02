@@ -49,7 +49,6 @@ class _StepsScreenState extends ConsumerState<StepsScreen> {
         [HealthDataType.STEPS],
         permissions: [HealthDataAccess.READ],
       );
-      debugPrint('HEALTH_AUTH: requestAuthorization result: $authorized');
       setState(() => _healthAuthorized = authorized);
       if (authorized) {
         _syncHealth();
@@ -66,7 +65,6 @@ class _StepsScreenState extends ConsumerState<StepsScreen> {
         }
       }
     } catch (e) {
-      debugPrint('HEALTH_AUTH: Error requesting permissions: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error al solicitar permisos: $e')),
