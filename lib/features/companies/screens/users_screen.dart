@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:share_plus/share_plus.dart';
 import '../../../core/supabase/client.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../providers/company_provider.dart';
@@ -159,6 +160,19 @@ class _GenerateInviteDialogState extends ConsumerState<_GenerateInviteDialog> {
   String? _inviteToken;
   bool _loading = false;
 
+  Future<void> _share() async {
+    final token = _inviteToken!;
+    // Enlace con scheme custom: en mensajeros que no lo hagan clicable,
+    // el código en texto plano sirve como fallback (diálogo del login).
+    await Share.share(
+      'Te invito a unirte a nuestra empresa en HealthyWalky.\n\n'
+      'Si ya tienes la app, abre este enlace:\n'
+      'healthywalky://open/invite?token=$token\n\n'
+      'O entra en la app, pulsa "Tengo una invitación" y pega este código:\n'
+      '$token',
+    );
+  }
+
   Future<void> _generate() async {
     setState(() => _loading = true);
     try {
@@ -221,6 +235,12 @@ class _GenerateInviteDialogState extends ConsumerState<_GenerateInviteDialog> {
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('Cerrar'),
         ),
+        if (_inviteToken != null)
+          FilledButton.icon(
+            onPressed: _share,
+            icon: const Icon(Icons.share, size: 18),
+            label: const Text('Compartir'),
+          ),
         if (_inviteToken == null)
           FilledButton(
             onPressed: _loading ? null : _generate,
