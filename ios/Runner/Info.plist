@@ -66,6 +66,19 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>com.healthywalky.healthywalky</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>healthywalky</string>
+			</array>
+		</dict>
+	</array>
 	<key>NSHealthShareUsageDescription</key>
 	<string>HealthyWalky utiliza tus datos de pasos para sincronizarlos con la tabla de clasificación corporativa de tu empresa.</string>
 	<key>NSHealthUpdateUsageDescription</key>

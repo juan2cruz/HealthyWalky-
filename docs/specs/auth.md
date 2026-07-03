@@ -76,7 +76,7 @@ El estado "autenticado sin perfil" es de primera clase: es el punto de paso obli
 
 **Generar y compartir una invitación**
 - `create_invite()` (RPC admin-only, token one-time) como hasta ahora.
-- Nuevo: botón "Compartir invitación" que abre el **share sheet nativo** (`share_plus`) con un mensaje que incluye el enlace `healthywalky://invite?token=<token>` **y el código en texto plano como fallback** (no todos los mensajeros hacen clicable un scheme custom).
+- Nuevo: botón "Compartir invitación" que abre el **share sheet nativo** (`share_plus`) con un mensaje que incluye el enlace `healthywalky://open/invite?token=<token>` **y el código en texto plano como fallback** (no todos los mensajeros hacen clicable un scheme custom).
 - Se conserva el botón de copiar el código.
 
 **Decisión explícitamente validada:** la ergonomía elegida es enlace + share sheet, sin QR en esta iteración.
@@ -89,8 +89,8 @@ Scheme custom registrado en ambas plataformas: `healthywalky://`
 
 | URI | Uso |
 |---|---|
-| `healthywalky://login-callback` | Retorno del flujo OAuth (redirect de Supabase Auth) |
-| `healthywalky://invite?token=<uuid>` | Abre la app en `/invite` con el token precargado |
+| `healthywalky://login-callback` | Retorno del flujo OAuth (redirect de Supabase Auth; lo procesa supabase_flutter, el router lo reconduce a login/dashboard) |
+| `healthywalky://open/invite?token=<uuid>` | Abre la app en `/invite` con el token precargado. El segmento `open` es el *host* del URI: go_router enruta por el `path` (`/invite`), no por el host |
 
 - Android: `intent-filter` `VIEW` + `BROWSABLE` con `android:scheme="healthywalky"` en `MainActivity`.
 - iOS: `CFBundleURLTypes` en `Info.plist`.

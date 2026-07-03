@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/supabase/client.dart';
+import '../auth_helpers.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -14,12 +17,46 @@ class _LoginScreenState extends State<LoginScreen> {
   final _emailCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
   bool _loading = false;
+  StreamSubscription<AuthState>? _authSub;
+
+  @override
+  void initState() {
+    super.initState();
+    // OAuth vuelve por deep link (healthywalky://login-callback), así que la
+    // navegación no puede vivir en el onPressed: se dispara cuando GoTrue
+    // emite signedIn. También cubre el login con contraseña.
+    _authSub = supabase.auth.onAuthStateChange.listen((state) async {
+      if (state.event != AuthChangeEvent.signedIn) return;
+      final hasProfile = await currentUserHasProfile();
+      if (!mounted) return;
+      context.go(hasProfile ? '/dashboard' : '/onboarding');
+    });
+  }
 
   @override
   void dispose() {
+    _authSub?.cancel();
     _emailCtrl.dispose();
     _passCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _signInWithGoogle() async {
+    setState(() => _loading = true);
+    try {
+      await supabase.auth.signInWithOAuth(
+        OAuthProvider.google,
+        redirectTo: 'healthywalky://login-callback',
+        authScreenLaunchMode: LaunchMode.externalApplication,
+      );
+    } on AuthException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(e.message)));
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
   }
 
   void _showInviteDialog(BuildContext ctx) {
@@ -62,7 +99,7 @@ class _LoginScreenState extends State<LoginScreen> {
         email: _emailCtrl.text.trim(),
         password: _passCtrl.text,
       );
-      if (mounted) context.go('/dashboard');
+      // La navegación la hace el listener de onAuthStateChange.
     } on AuthException catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
@@ -119,6 +156,23 @@ class _LoginScreenState extends State<LoginScreen> {
                             child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                           )
                         : const Text('Iniciar sesión'),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      const Expanded(child: Divider()),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        child: Text('o', style: TextStyle(color: Colors.grey[600])),
+                      ),
+                      const Expanded(child: Divider()),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  OutlinedButton.icon(
+                    onPressed: _loading ? null : _signInWithGoogle,
+                    icon: const Icon(Icons.g_mobiledata, size: 28),
+                    label: const Text('Continuar con Google'),
                   ),
                   const SizedBox(height: 12),
                   OutlinedButton(
