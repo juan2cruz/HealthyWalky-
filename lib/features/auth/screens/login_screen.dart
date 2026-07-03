@@ -29,6 +29,9 @@ class _LoginScreenState extends State<LoginScreen> {
       if (state.event != AuthChangeEvent.signedIn) return;
       final hasProfile = await currentUserHasProfile();
       if (!mounted) return;
+      // Si hay otra pantalla encima (p. ej. /invite abierta por deep link
+      // mientras login sigue en el stack), la navegación es suya, no nuestra.
+      if (!(ModalRoute.of(context)?.isCurrent ?? true)) return;
       context.go(hasProfile ? '/dashboard' : '/onboarding');
     });
   }

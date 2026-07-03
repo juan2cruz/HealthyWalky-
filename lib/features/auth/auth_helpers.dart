@@ -21,6 +21,16 @@ Future<void> signUpOrSignIn(String email, String password) async {
   }
 }
 
+/// Suggested display name from the OAuth provider (Google), if any.
+/// Google populates `full_name` and `name` in user_metadata; password
+/// sign-ups have neither.
+String? providerDisplayName() {
+  final meta = supabase.auth.currentUser?.userMetadata;
+  final name = (meta?['full_name'] ?? meta?['name']) as String?;
+  final trimmed = name?.trim();
+  return (trimmed == null || trimmed.isEmpty) ? null : trimmed;
+}
+
 /// Whether the current auth user already has a profile (i.e. finished
 /// registration and belongs to a company).
 Future<bool> currentUserHasProfile() async {

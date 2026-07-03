@@ -19,6 +19,17 @@ class _RegisterCompanyScreenState extends State<RegisterCompanyScreen> {
   final _emailCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
   bool _loading = false;
+  // Con sesión previa (venimos de Google/onboarding) no se piden credenciales
+  // y el nombre se precarga desde el proveedor (editable).
+  late final bool _hasSession = supabase.auth.currentSession != null;
+
+  @override
+  void initState() {
+    super.initState();
+    if (_hasSession) {
+      _displayNameCtrl.text = providerDisplayName() ?? '';
+    }
+  }
 
   @override
   void dispose() {
@@ -39,8 +50,11 @@ class _RegisterCompanyScreenState extends State<RegisterCompanyScreen> {
 
     try {
       // 1. Create auth user (or recover the session of a previous
-      //    half-finished registration with the same credentials)
-      await signUpOrSignIn(_emailCtrl.text.trim(), _passCtrl.text);
+      //    half-finished registration with the same credentials).
+      //    Skipped when arriving already authenticated (OAuth/onboarding).
+      if (!_hasSession) {
+        await signUpOrSignIn(_emailCtrl.text.trim(), _passCtrl.text);
+      }
 
       // Already fully registered? Go straight in.
       if (await currentUserHasProfile()) {
@@ -120,22 +134,24 @@ class _RegisterCompanyScreenState extends State<RegisterCompanyScreen> {
                       decoration: const InputDecoration(labelText: 'Tu nombre completo'),
                       validator: (v) => (v?.isEmpty ?? true) ? 'Obligatorio' : null,
                     ),
-                    const Divider(height: 32),
-                    TextFormField(
-                      controller: _emailCtrl,
-                      keyboardType: TextInputType.emailAddress,
-                      decoration: const InputDecoration(labelText: 'Email de administrador'),
-                      validator: (v) =>
-                          (v?.contains('@') ?? false) ? null : 'Email inválido',
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _passCtrl,
-                      obscureText: true,
-                      decoration: const InputDecoration(labelText: 'Contraseña (min. 6 caracteres)'),
-                      validator: (v) =>
-                          (v?.length ?? 0) >= 6 ? null : 'Mínimo 6 caracteres',
-                    ),
+                    if (!_hasSession) ...[
+                      const Divider(height: 32),
+                      TextFormField(
+                        controller: _emailCtrl,
+                        keyboardType: TextInputType.emailAddress,
+                        decoration: const InputDecoration(labelText: 'Email de administrador'),
+                        validator: (v) =>
+                            (v?.contains('@') ?? false) ? null : 'Email inválido',
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: _passCtrl,
+                        obscureText: true,
+                        decoration: const InputDecoration(labelText: 'Contraseña (min. 6 caracteres)'),
+                        validator: (v) =>
+                            (v?.length ?? 0) >= 6 ? null : 'Mínimo 6 caracteres',
+                      ),
+                    ],
                     const SizedBox(height: 24),
                     FilledButton(
                       onPressed: _loading ? null : _register,

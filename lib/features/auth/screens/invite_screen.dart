@@ -18,6 +18,36 @@ class _InviteScreenState extends State<InviteScreen> {
   final _emailCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
   bool _loading = false;
+  // Con sesión previa (Google u onboarding) solo se pide el nombre; el
+  // token sobrevive al ida-y-vuelta OAuth porque el redirect vuelve a
+  // esta misma ruta con el token en la query.
+  late final bool _hasSession = supabase.auth.currentSession != null;
+
+  @override
+  void initState() {
+    super.initState();
+    if (_hasSession) {
+      _displayNameCtrl.text = providerDisplayName() ?? '';
+    }
+  }
+
+  Future<void> _joinWithGoogle() async {
+    setState(() => _loading = true);
+    try {
+      await supabase.auth.signInWithOAuth(
+        OAuthProvider.google,
+        redirectTo: 'healthywalky://open/invite?token=${widget.token}',
+        authScreenLaunchMode: LaunchMode.externalApplication,
+      );
+    } on AuthException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(e.message)));
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
 
   @override
   void dispose() {
@@ -39,7 +69,10 @@ class _InviteScreenState extends State<InviteScreen> {
     try {
       // Create the auth user, or recover the session of a previous
       // half-finished join attempt with the same credentials.
-      await signUpOrSignIn(_emailCtrl.text.trim(), _passCtrl.text);
+      // Skipped when arriving already authenticated (OAuth/onboarding).
+      if (!_hasSession) {
+        await signUpOrSignIn(_emailCtrl.text.trim(), _passCtrl.text);
+      }
 
       if (await currentUserHasProfile()) {
         // Already joined a company — the token is not needed.
@@ -99,22 +132,24 @@ class _InviteScreenState extends State<InviteScreen> {
                       decoration: const InputDecoration(labelText: 'Tu nombre'),
                       validator: (v) => (v?.isEmpty ?? true) ? 'Obligatorio' : null,
                     ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _emailCtrl,
-                      keyboardType: TextInputType.emailAddress,
-                      decoration: const InputDecoration(labelText: 'Email'),
-                      validator: (v) =>
-                          (v?.contains('@') ?? false) ? null : 'Email inválido',
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _passCtrl,
-                      obscureText: true,
-                      decoration: const InputDecoration(labelText: 'Contraseña'),
-                      validator: (v) =>
-                          (v?.length ?? 0) >= 6 ? null : 'Mínimo 6 caracteres',
-                    ),
+                    if (!_hasSession) ...[
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: _emailCtrl,
+                        keyboardType: TextInputType.emailAddress,
+                        decoration: const InputDecoration(labelText: 'Email'),
+                        validator: (v) =>
+                            (v?.contains('@') ?? false) ? null : 'Email inválido',
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: _passCtrl,
+                        obscureText: true,
+                        decoration: const InputDecoration(labelText: 'Contraseña'),
+                        validator: (v) =>
+                            (v?.length ?? 0) >= 6 ? null : 'Mínimo 6 caracteres',
+                      ),
+                    ],
                     const SizedBox(height: 24),
                     FilledButton(
                       onPressed: _loading ? null : _join,
@@ -126,6 +161,25 @@ class _InviteScreenState extends State<InviteScreen> {
                             )
                           : const Text('Unirme al equipo'),
                     ),
+                    if (!_hasSession) ...[
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          const Expanded(child: Divider()),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            child: Text('o', style: TextStyle(color: Colors.grey[600])),
+                          ),
+                          const Expanded(child: Divider()),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      OutlinedButton.icon(
+                        onPressed: _loading ? null : _joinWithGoogle,
+                        icon: const Icon(Icons.g_mobiledata, size: 28),
+                        label: const Text('Continuar con Google'),
+                      ),
+                    ],
                   ],
                 ),
               ),

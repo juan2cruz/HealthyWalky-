@@ -115,7 +115,7 @@ Sin cambios: `register_company` y `accept_invite` ya validan todo lo relevante e
 | Dónde | Qué |
 |---|---|
 | Google Cloud Console | OAuth Client (tipo *Web application*) con redirect URI del proyecto Supabase (`https://<ref>.supabase.co/auth/v1/callback`) — uno por proyecto o compartido |
-| Supabase dashboard (dev **y** testers) | Authentication → Providers → Google: habilitar con client ID + secret; Authentication → URL Configuration → añadir `healthywalky://login-callback` a *Redirect URLs* |
+| Supabase dashboard (dev **y** testers) | Authentication → Providers → Google: habilitar con client ID + secret; Authentication → URL Configuration → añadir `healthywalky://**` a *Redirect URLs* (cubre `login-callback` y el retorno a `/invite`, que lleva el token en la query) |
 
 Ambos proyectos (dev `qpobvyuqbqimbdfmakwd`, testers `qqrxaehuqjtwgukokggf`) deben configurarse o el login con Google fallará solo en uno de los entornos.
 
