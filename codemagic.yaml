@@ -1,0 +1,28 @@
+workflows:
+  ios-poc:
+    name: iOS POC (unsigned IPA)
+    instance_type: mac_mini_m2
+    max_build_duration: 30
+    environment:
+      flutter: stable
+      groups:
+        - supabase_testers
+    scripts:
+      - name: Create .env
+        script: |
+          cat > "$CM_BUILD_DIR/.env" <<EOF
+          SUPABASE_URL=$SUPABASE_URL
+          SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY
+          EOF
+      - name: Flutter pub get
+        script: flutter pub get
+      - name: Build iOS release sin firma
+        script: flutter build ios --release --no-codesign
+      - name: Empaquetar IPA sin firmar
+        script: |
+          cd "$CM_BUILD_DIR/build/ios/iphoneos"
+          mkdir Payload
+          cp -r Runner.app Payload/
+          zip -r -y HealthyWalky-unsigned.ipa Payload
+    artifacts:
+      - build/ios/iphoneos/*.ipa
