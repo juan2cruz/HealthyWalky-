@@ -62,7 +62,7 @@ lib/
 
 Each feature follows: `models/` → `providers/` → `screens/`.
 
-**Other directories:** `docs/specs/` holds the SDD specs (`teams.md`, `challenges.md`, `steps.md`) — keep them in sync with migrations when formulas or flows change. `test/features/` has provider tests (currently teams only). `referencias/` holds QA screenshots and notes from manual testing sessions (not code).
+**Other directories:** `docs/specs/` holds the SDD specs (`auth.md`, `teams.md`, `challenges.md`, `steps.md`) — keep them in sync with migrations when formulas or flows change. `test/features/` has provider tests (currently teams only). `referencias/` holds QA screenshots and notes from manual testing sessions (not code).
 
 **State management:** `flutter_riverpod` with plain `Provider`/`FutureProvider`/`StreamProvider`. The `riverpod_annotation` + `build_runner` packages are installed for future code-gen providers — run `build_runner` after adding `@riverpod` annotations.
 
@@ -88,6 +88,7 @@ Migrations live in `supabase/migrations/` (currently 0001–0023) and run in ord
 
 ## Key Conventions
 
+- **Auth (1.1.0, see `docs/specs/auth.md`):** email/password AND Google OAuth (`signInWithOAuth`, PKCE, external browser). Deep-link scheme `healthywalky://` registered on both platforms: `login-callback` (OAuth return) and `open/invite?token=...` (invite links; the `open` host is dropped — go_router routes by path). Google must be enabled in the Supabase dashboard of BOTH projects (dev + testers) with `healthywalky://**` in Redirect URLs, or the button fails only in one environment. Authenticated users without a profile land on `/onboarding` (create company / enter invite), which also covers kicked users. `LoginScreen` navigates via an `onAuthStateChange` listener (guarded by `ModalRoute.isCurrent` to not clobber `/invite` deep links); OAuth-authenticated visitors to register/invite screens see no credential fields and get `display_name` prefilled from `user_metadata`.
 - **Roles:** `admin` vs `member` stored in `profiles.role`. The bottom nav (`MainShell`) shows the same 5 tabs for everyone (Inicio, Pasos, Equipos, Desafíos, Ranking) — role branching happens *inside* screens (e.g. `DashboardScreen` shows admin quick-actions, `/users` management is linked only for admins). RLS + RPC role checks restrict write operations to admins.
 - **Step data:** `daily_steps` is denormalized with `company_id` for RLS performance. The `source` column (`manual` / `google_fit` / `apple_health` / `samsung_health`) and `is_canonical` flag support health-platform sync, which is fully implemented in `StepsScreen` (via the `health` package on Android/iOS — auto-sync on load, manual "Sincronizar ahora", pull-to-refresh). When manual and synced entries disagree for the same day, the UI shows a conflict banner letting the user pick the canonical source. Leaderboard queries always filter `WHERE is_canonical = true`.
 - **No service-role key in client:** All Supabase calls go through the publishable key; authorization is enforced entirely by RLS + RPCs.
@@ -97,7 +98,7 @@ Migrations live in `supabase/migrations/` (currently 0001–0023) and run in ord
 
 - The leaderboard *refresh* pg_cron job from `0013` is still not scheduled (only challenge completion runs nightly since 0023); leaderboards refresh on screen open / manual pull.
 - No individual-ranking screen: `get_individual_leaderboard` exists in the DB but the Ranking tab only renders team leaderboards (shows an explanatory message for individual challenges).
-- A user kicked from a company (`kick_user`) keeps their `auth.users` row and sees an empty app on login; they can re-join any company via a fresh invite code (`accept_invite` creates a new profile).
+- A user kicked from a company (`kick_user`) keeps their `auth.users` row; since 1.1.0 they land on `/onboarding` (instead of an empty app) and can re-join via a fresh invite code (`accept_invite` creates a new profile).
 - Draft challenges cannot be edited or deleted from the UI.
 - **iOS HealthKit entitlements are NOT wired to the target.** `ios/Runner/Runner.entitlements` exists but no build config sets `CODE_SIGN_ENTITLEMENTS` — declaring it breaks `flutter build ios --no-codesign` on CI (Xcode demands a provisioning profile backing the entitlements). When real Apple signing is configured, re-add `CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;` plus `DEVELOPMENT_TEAM` to the three Runner-target configs in `project.pbxproj`, and enable the HealthKit capability on the App ID. Until then, Apple Health sync will not work on real iOS devices.
 - iOS CI is defined in `codemagic.yaml` (workflow `ios-poc`): release build with `--no-codesign`, zipped into an unsigned IPA artifact for sideloading onto test iPhones with Sideloadly + a free Apple ID (7-day expiry). It writes `.env` from the Codemagic env-var group `supabase_testers` (`SUPABASE_URL`, `SUPABASE_ANON_KEY`) because `.env*` is gitignored yet pubspec declares `.env` as a required asset.

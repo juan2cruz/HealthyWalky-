@@ -2,7 +2,7 @@ name: healthywalky
 description: "HealthyWalky — corporate team step-ranking platform."
 publish_to: 'none'
 
-version: 1.0.3+4
+version: 1.1.0+5
 
 environment:
   sdk: ^3.12.2
